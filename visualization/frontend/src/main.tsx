@@ -6,6 +6,7 @@ import React, {
   type SetStateAction,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,13 +17,16 @@ import * as Collapsible from "@radix-ui/react-collapsible";
 import * as Progress from "@radix-ui/react-progress";
 import * as Switch from "@radix-ui/react-switch";
 import * as Tabs from "@radix-ui/react-tabs";
-import { Activity, Box, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Copy, Cpu, Database, Download, FolderUp, Github, Maximize2, Minus, MonitorCog, Play, RefreshCw, Server, SlidersHorizontal, Square, Terminal, Wrench, X } from "lucide-react";
+import { Activity, Box, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleAlert, Copy, Cpu, Database, Download, FolderUp, Github, Maximize2, Minus, MonitorCog, Play, RefreshCw, Server, SlidersHorizontal, Square, Terminal, X, ArrowRight, Layers3, PanelLeft, Plus, Images, Orbit } from "lucide-react";
 import "./styles.css";
+import "./workspace.css";
+import { ExperimentDetails } from "./experiment-details";
 import { PhotoPanel } from "./photo-panel";
 import { useJobStream } from "./use-job-stream";
-import { ResultsBrowser, type ResultItem } from "./results-browser";
+import { ResultsBrowser } from "./results-browser";
+import { waitForViewerIdle, type ResultItem } from "./result-view";
 import { ViewerCanvas, ViewerProvider, useViewerApi } from "./viewer-context";
-import { ViewControls, ViewerToolbar, ViewerLoading, SceneStats } from "./viewer-controls";
+import { ViewControls, ViewerToolbar, ViewerLoading, SceneStats, ViewerEmpty } from "./viewer-controls";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted";
 type InputValue = string | number;
@@ -55,6 +59,7 @@ interface LoaderDescriptor {
 
 interface RunFormState {
   name: string;
+  max_run_minutes: InputValue;
   sample_id: string;
   dataset_dir: string;
   images_dir: string;
@@ -67,19 +72,9 @@ interface RunFormState {
   run_mvs: boolean;
   execution_target: "local" | "remote";
   hardware: string;
-  remote_connection: "api" | "ssh";
-  remote_provider: string;
   remote_endpoint: string;
   modal_api_key: string;
-  modal_token_id: string;
-  modal_token_secret: string;
   modal_gpu: string;
-  ssh_host: string;
-  ssh_port: InputValue;
-  ssh_username: string;
-  ssh_authentication: "agent" | "key";
-  ssh_private_key: string;
-  ssh_workspace: string;
   remote_hardware: string;
   max_resolution: InputValue;
   num_workers: InputValue;
@@ -97,6 +92,10 @@ interface RunFormState {
   dashboard_port: string;
   input_worker: string;
   dask_tmpdir: string;
+  dask_worker_hosts: string;
+  dask_scheduler_host: string;
+  dask_scheduler_port: InputValue;
+  dask_worker_python: string;
   cluster_config: string;
   num_retry_cluster_connection: InputValue;
   advanced_overrides: string;
@@ -265,7 +264,7 @@ function ModalDeploymentDialog({ deployment, onCancel, onClose }: { deployment: 
 const MODAL_WORKSPACE_STEPS = [
   { id: "building", label: "Prepare CUDA image", detail: "Install and cache the GTSFM environment" },
   { id: "deploying", label: "Deploy workspace", detail: "Publish the FastAPI workspace on Modal" },
-  { id: "verifying", label: "Start & verify workspace", detail: "Cold-start the GPU and confirm the workspace API is healthy" },
+  { id: "verifying", label: "Start & verify workspace", detail: "Check the CPU control service before launching a run" },
 ] as const;
 
 function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deployment: ModalDeployment; onCancel: () => void; onExpand: () => void }) {
@@ -292,22 +291,6 @@ function ModalDeploymentProgress({ deployment, onCancel, onExpand }: { deploymen
   </section>;
 }
 
-type ModalWorkspaceReadiness = "idle" | "found" | "working" | "ready" | "attention";
-
-function ModalWorkspaceStatus({ state, detail }: { state: ModalWorkspaceReadiness; detail: string }) {
-  const title = {
-    idle: "Workspace setup required",
-    found: "Modal workspace found",
-    working: "Preparing Modal workspace",
-    ready: "Modal workspace ready",
-    attention: "Workspace needs attention",
-  }[state];
-  return <div className={`modal-workspace-status ${state}`} role="status" aria-live="polite">
-    <span aria-hidden="true">{state === "working" ? <RefreshCw className="spin" size={13}/> : state === "ready" ? <Check size={13}/> : state === "attention" ? <CircleAlert size={13}/> : <Server size={13}/>}</span>
-    <div><strong>{title}</strong><small>{detail}</small></div>
-  </div>;
-}
-
 interface JobEvent {
   job: Job;
   live: LiveState;
@@ -326,9 +309,10 @@ interface Job {
   spec: {
     config_name?: string;
     splat_implementation?: string;
+    remote_connection?: string;
   };
   error?: string;
-  remote?: { workspace_url?: string };
+  remote?: { workspace_url?: string; cancel_status?: string };
   log_tail?: string[];
   has_final_splat?: boolean;
 }
@@ -410,16 +394,15 @@ interface FolderFile {
 }
 
 const EMPTY_FORM: RunFormState = {
+  max_run_minutes: 60,
   name: "my-scene", sample_id: "", dataset_dir: "", images_dir: "", loader: "olsson", config_name: "vggt",
   splat_implementation: "gsplat", gaussian_splatting_config_name: "base_gs", gs_max_steps: 7000,
   live_preview_interval: 250, run_mvs: false, execution_target: "local", hardware: "cpu",
-  remote_connection: "api", remote_provider: "modal", remote_endpoint: "", modal_api_key: "", modal_token_id: "",
-  modal_token_secret: "", modal_gpu: "L40S", ssh_host: "", ssh_port: 22, ssh_username: "", ssh_authentication: "agent",
-  ssh_private_key: "", ssh_workspace: "", remote_hardware: "", max_resolution: "", num_workers: 1,
+  remote_endpoint: "", modal_api_key: "", modal_gpu: "L40S", remote_hardware: "cpu", max_resolution: "", num_workers: 1,
   threads_per_worker: 1, worker_memory_limit: "32GB", graph_partitioner: "", global_descriptor_config_name: "",
   retriever_config_name: "", correspondence_generator_config_name: "", verifier_config_name: "",
   max_frame_lookahead: "", num_matched: "", share_intrinsics: false, log: "INFO", dashboard_port: "",
-  input_worker: "", dask_tmpdir: "", cluster_config: "", num_retry_cluster_connection: "", advanced_overrides: "",
+  input_worker: "", dask_tmpdir: "", dask_worker_hosts: "", dask_scheduler_host: "", dask_scheduler_port: 0, dask_worker_python: "", cluster_config: "", num_retry_cluster_connection: "", advanced_overrides: "",
 };
 
 // Keep the form useful on the very first paint. The full catalog is loaded from
@@ -605,24 +588,6 @@ function HydraFieldGroup({ title, fields, values, onChange }: { title: string; f
   return <section className="hydra-group"><header><strong>{title}</strong><small>{fields.filter((field) => values[field.key]).length} changed</small></header><div className="hydra-grid">{fields.map((field) => <HydraFieldControl key={field.key} descriptor={field} value={values[field.key]} onChange={(value) => onChange(field.key, value)} />)}</div></section>;
 }
 
-interface ModalCredentials {
-  tokenId: string;
-  tokenSecret: string;
-}
-
-function parseModalTokenCommand(value: string): ModalCredentials | null {
-  const readFlag = (flag: string): string => {
-    const escaped = flag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = value.match(new RegExp(`(?:^|\\s)${escaped}(?:=|\\s+)(?:"([^"]+)"|'([^']+)'|([^\\s]+))`));
-    return (match?.[1] ?? match?.[2] ?? match?.[3] ?? "").trim();
-  };
-  const tokenId = readFlag("--token-id");
-  const tokenSecret = readFlag("--token-secret");
-  return tokenId && tokenSecret ? { tokenId, tokenSecret } : null;
-}
-
-const modalBearerToken = (form: RunFormState): string => form.modal_api_key;
-
 const displayName = (value: unknown): string => String(value ?? "").split("_").map((token) => {
   if (["api", "ba", "colmap", "gpu", "gs", "mvs", "sift", "vggt"].includes(token)) return token.toUpperCase();
   if (token === "anysplat") return "AnySplat";
@@ -635,18 +600,16 @@ const errorMessage = (reason: unknown): string => reason instanceof Error ? reas
 async function getJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  if (!response.ok) throw new Error(payload.error || payload.detail || `Request failed (${response.status})`);
   return payload as T;
 }
 
 function Brand({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  return <header className="studio-header" aria-label="SfM Studio">
-    <div className="brand-primary"><img className="brand-logo" src="/static/brand/sfm-logo.png" alt="SfM" /></div>
-    <img className="brand-mark" src="/static/brand/bee-favicon.png" alt="" aria-hidden="true" />
-    <button className="sidebar-toggle" type="button" onClick={onToggle} title={collapsed ? "Expand side panel" : "Collapse side panel"} aria-label={collapsed ? "Expand side panel" : "Collapse side panel"}>
-      {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-    </button>
-  </header>;
+  return <div className="studio-identity">
+    <img src="/static/brand/sfm-logo.png" alt="GTSfM" className="gtsfm-wordmark" />
+    <span className="studio-name">Studio</span>
+    <button className="library-toggle" type="button" onClick={onToggle} title={collapsed ? "Expand side panel" : "Collapse side panel"} aria-label={collapsed ? "Expand side panel" : "Collapse side panel"}><PanelLeft size={17}/></button>
+  </div>;
 }
 
 interface FieldProps {
@@ -670,7 +633,10 @@ interface SelectFieldProps {
 }
 
 function SelectField({ label, value, options, onChange, disabled = false, empty = null, id }: SelectFieldProps) {
-  return <Field label={label}><select id={id} value={value ?? ""} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+  const selected = value ?? "";
+  const available = (selected === "" && empty !== null) || options.some((option) => (typeof option === "string" ? option : option.id) === String(selected));
+  return <Field label={label}><select id={id} aria-label={label} aria-invalid={!available} value={selected} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+    {!available && <option value={selected} disabled>{selected ? `${selected} (unavailable)` : "Choose an option…"}</option>}
     {empty !== null && <option value="">{empty}</option>}
     {options.map((option) => {
       const item = typeof option === "string" ? { id: option, label: displayName(option) } : option;
@@ -704,17 +670,17 @@ interface ModalGpuChoice extends Choice {
   memoryGiB: number;
 }
 
-const MODAL_GPU_PRICING: ModalGpuChoice[] = [
-  { id: "T4", label: "NVIDIA T4 · 16 GB · $0.59/hr", pricePerSecond: 0.000164, relativeSpeed: 0.3, memoryGiB: 16 },
-  { id: "L4", label: "NVIDIA L4 · 24 GB · $0.80/hr", pricePerSecond: 0.000222, relativeSpeed: 0.5, memoryGiB: 24 },
-  { id: "A10", label: "NVIDIA A10 · 24 GB · $1.10/hr", pricePerSecond: 0.000306, relativeSpeed: 0.58, memoryGiB: 24 },
-  { id: "L40S", label: "NVIDIA L40S · 48 GB · $1.95/hr", pricePerSecond: 0.000542, relativeSpeed: 1, memoryGiB: 48 },
-  { id: "A100-40GB", label: "NVIDIA A100 · 40 GB · $2.10/hr", pricePerSecond: 0.000583, relativeSpeed: 1.18, memoryGiB: 40 },
-  { id: "A100-80GB", label: "NVIDIA A100 · 80 GB · $2.50/hr", pricePerSecond: 0.000694, relativeSpeed: 1.3, memoryGiB: 80 },
-  { id: "RTX-PRO-6000", label: "NVIDIA RTX PRO 6000 · 96 GB · $3.03/hr", pricePerSecond: 0.000842, relativeSpeed: 1.45, memoryGiB: 96 },
-  { id: "H100", label: "NVIDIA H100 · 80 GB · $3.95/hr", pricePerSecond: 0.001097, relativeSpeed: 1.8, memoryGiB: 80 },
-  { id: "H200", label: "NVIDIA H200 · 141 GB · $4.54/hr", pricePerSecond: 0.001261, relativeSpeed: 1.95, memoryGiB: 141 },
-  { id: "B200", label: "NVIDIA B200 · 180 GB · $6.25/hr", pricePerSecond: 0.001736, relativeSpeed: 2.35, memoryGiB: 180 },
+const MODAL_GPU_CHOICES: ModalGpuChoice[] = [
+  { id: "T4", label: "NVIDIA T4 · 16 GB", pricePerSecond: 0.000164, relativeSpeed: 0.3, memoryGiB: 16 },
+  { id: "L4", label: "NVIDIA L4 · 24 GB", pricePerSecond: 0.000222, relativeSpeed: 0.5, memoryGiB: 24 },
+  { id: "A10", label: "NVIDIA A10 · 24 GB", pricePerSecond: 0.000306, relativeSpeed: 0.58, memoryGiB: 24 },
+  { id: "L40S", label: "NVIDIA L40S · 48 GB", pricePerSecond: 0.000542, relativeSpeed: 1, memoryGiB: 48 },
+  { id: "A100-40GB", label: "NVIDIA A100 · 40 GB", pricePerSecond: 0.000583, relativeSpeed: 1.18, memoryGiB: 40 },
+  { id: "A100-80GB", label: "NVIDIA A100 · 80 GB", pricePerSecond: 0.000694, relativeSpeed: 1.3, memoryGiB: 80 },
+  { id: "RTX-PRO-6000", label: "NVIDIA RTX PRO 6000 · 96 GB", pricePerSecond: 0.000842, relativeSpeed: 1.45, memoryGiB: 96 },
+  { id: "H100", label: "NVIDIA H100 · 80 GB", pricePerSecond: 0.001097, relativeSpeed: 1.8, memoryGiB: 80 },
+  { id: "H200", label: "NVIDIA H200 · 141 GB", pricePerSecond: 0.001261, relativeSpeed: 1.95, memoryGiB: 141 },
+  { id: "B200", label: "NVIDIA B200 · 180 GB", pricePerSecond: 0.001736, relativeSpeed: 2.35, memoryGiB: 180 },
   { id: "B300", label: "NVIDIA B300 · 288 GB · Coming Soon!", status: "coming-soon", pricePerSecond: 0.001972, relativeSpeed: 2.65, memoryGiB: 288 },
 ];
 
@@ -740,15 +706,14 @@ function recommendModalGpu(form: RunFormState, analysis?: DatasetAnalysis, fallb
   const estimatedMemoryGiB = Math.ceil(5 + sceneUnits * 0.1 + modelMemory + splatMemory + (form.run_mvs ? 4 : 0));
 
   let gpuId = "L4";
-  if (estimatedMemoryGiB <= 14 && form.splat_implementation === "none") gpuId = "T4";
-  else if (estimatedMemoryGiB <= 22) gpuId = "L4";
+  if (estimatedMemoryGiB <= 22) gpuId = "L4";
   else if (estimatedMemoryGiB <= 44) gpuId = "L40S";
   else if (estimatedMemoryGiB <= 72 && sceneUnits < 350) gpuId = "A100-80GB";
   else if (estimatedMemoryGiB <= 72) gpuId = "H100";
   else if (estimatedMemoryGiB <= 125) gpuId = "H200";
   else gpuId = "B200";
 
-  const gpu = MODAL_GPU_PRICING.find((item) => item.id === gpuId) ?? MODAL_GPU_PRICING[3];
+  const gpu = MODAL_GPU_CHOICES.find((item) => item.id === gpuId) ?? MODAL_GPU_CHOICES[3];
   const scale = imageCount < 40 ? "small" : imageCount < 140 ? "medium" : imageCount < 350 ? "large" : "very large";
   return {
     gpu,
@@ -758,19 +723,6 @@ function recommendModalGpu(form: RunFormState, analysis?: DatasetAnalysis, fallb
     reason: `${scale} ${imageCount}-image workload at about ${effectiveMegapixels.toFixed(effectiveMegapixels < 10 ? 1 : 0)} MP per image`,
   };
 }
-
-function ModalGpuRecommendationCard({ recommendation, selectedGpu, onApply }: { recommendation: ModalGpuRecommendation | null; selectedGpu: string; onApply: () => void }) {
-  if (!recommendation) return <div className="modal-gpu-recommendation empty"><strong>VM recommendation</strong><p>Choose a sample or upload images to size the Modal GPU automatically.</p></div>;
-  const selected = selectedGpu === recommendation.gpu.id;
-  return <section className={`modal-gpu-recommendation ${selected ? "selected" : "overridden"}`} aria-label="Recommended Modal VM size">
-    <div><span>RECOMMENDED VM</span><strong>{recommendation.gpu.id} · {recommendation.gpu.memoryGiB} GB</strong></div>
-    <p>{recommendation.reason}. Estimated peak GPU memory is approximately {recommendation.estimatedMemoryGiB} GiB, including working headroom.</p>
-    {selected ? <small><Check size={11}/> Selected automatically</small> : <button type="button" onClick={onApply}>Use recommended</button>}
-  </section>;
-}
-
-const formatDuration = (minutes: number): string => minutes < 60 ? `${Math.max(1, Math.round(minutes))} min` : `${(minutes / 60).toFixed(minutes < 120 ? 1 : 0)} hr`;
-const formatCost = (cost: number): string => `$${cost < 10 ? cost.toFixed(2) : cost.toFixed(1)}`;
 
 function memoryGiB(value: string): number {
   const match = value.trim().match(/^([\d.]+)\s*(gb|gib|mb|mib)?$/i);
@@ -823,10 +775,18 @@ const MODAL_VM_RESOURCES: Record<string, { cpu: number; memoryGiB: number }> = {
 };
 
 function advancedMachineProfile(form: RunFormState, hardware: HardwareCatalog | null, selected?: HardwareDevice): AdvancedMachineProfile {
+  if (form.execution_target === "local" && form.dask_worker_hosts.trim()) {
+    return {
+      key: "ssh-workers", label: "SSH workers",
+      description: "Worker settings apply on each SSH host. The control machine can use a different device.",
+      workers: Number(form.num_workers), threadsPerWorker: Number(form.threads_per_worker),
+      memoryPerWorkerGiB: memoryGiB(form.worker_memory_limit),
+      allowWorkers: true, allowThreads: true, allowMemory: true, allowLocalRuntime: true,
+    };
+  }
   if (form.execution_target === "remote") {
-    if (form.remote_connection === "api" && form.remote_provider === "modal") {
       const resources = MODAL_VM_RESOURCES[form.modal_gpu] ?? MODAL_VM_RESOURCES.L40S;
-      const gpu = MODAL_GPU_PRICING.find((item) => item.id === form.modal_gpu);
+      const gpu = MODAL_GPU_CHOICES.find((item) => item.id === form.modal_gpu);
       return {
         key: `modal:${form.modal_gpu}`,
         label: `Modal ${form.modal_gpu}`,
@@ -839,19 +799,6 @@ function advancedMachineProfile(form: RunFormState, hardware: HardwareCatalog | 
         allowMemory: true,
         allowLocalRuntime: false,
       };
-    }
-    return {
-      key: `remote:${form.remote_connection}:${form.remote_provider}`,
-      label: form.remote_connection === "ssh" ? "Direct VM (coming soon)" : `${displayName(form.remote_provider)} VM`,
-      description: "Machine-level tuning is unavailable until this remote provider is connected.",
-      workers: 1,
-      threadsPerWorker: 1,
-      memoryPerWorkerGiB: 32,
-      allowWorkers: false,
-      allowThreads: false,
-      allowMemory: false,
-      allowLocalRuntime: false,
-    };
   }
 
   const cpu = hardware?.devices.find((device) => device.kind === "cpu");
@@ -872,49 +819,11 @@ function advancedMachineProfile(form: RunFormState, hardware: HardwareCatalog | 
     workers,
     threadsPerWorker,
     memoryPerWorkerGiB,
-    allowWorkers: !accelerator,
+    allowWorkers: Boolean(selected),
     allowThreads: Boolean(selected),
     allowMemory: Boolean(selected),
     allowLocalRuntime: true,
   };
-}
-
-function ModalCostEstimate({ form, analysis, fallbackImageCount }: { form: RunFormState; analysis?: DatasetAnalysis; fallbackImageCount: number }) {
-  const imageCount = analysis?.image_count || fallbackImageCount;
-  if (!imageCount) return <div className="modal-estimate empty"><strong>Cost estimate</strong><p>Choose a GTSFM sample or upload an image dataset to calculate an estimate.</p></div>;
-
-  const gpu = MODAL_GPU_PRICING.find((item) => item.id === form.modal_gpu) ?? MODAL_GPU_PRICING[3];
-  const sourceAverageMegapixels = analysis?.average_megapixels || 8;
-  const maxResolution = Number(form.max_resolution);
-  const cappedMegapixels = Number.isFinite(maxResolution) && maxResolution > 0 ? (maxResolution ** 2 * 0.75) / 1_000_000 : sourceAverageMegapixels;
-  const effectiveAverageMegapixels = Math.min(sourceAverageMegapixels, cappedMegapixels);
-  const pixelFactor = Math.max(0.65, Math.min(2.5, Math.sqrt(effectiveAverageMegapixels / 2)));
-  const modelFactor = form.config_name.includes("fast") ? 0.75 : form.config_name === "vggt" ? 1 : 1.35;
-  const reconstructionMinutes = (2 + imageCount * 0.09 * pixelFactor + Math.pow(imageCount, 1.35) * 0.025) * modelFactor;
-  const steps = Math.max(1, Number(form.gs_max_steps) || 7000);
-  const splatMinutes = form.splat_implementation === "gsplat" ? (steps / 1000) * (0.45 + Math.sqrt(imageCount) * 0.08) * pixelFactor : form.splat_implementation === "anysplat" ? 1.5 + imageCount * 0.04 * pixelFactor : 0;
-  const mvsMinutes = form.run_mvs ? 1 + imageCount * 0.12 * pixelFactor : 0;
-  const referenceMinutes = reconstructionMinutes + splatMinutes + mvsMinutes;
-  const estimatedMinutes = referenceMinutes / gpu.relativeSpeed;
-  const lowMinutes = Math.max(1, estimatedMinutes * 0.7);
-  const highMinutes = Math.max(lowMinutes + 1, estimatedMinutes * 1.8 + 2);
-  const cpuCores = Math.max(1, Number(form.num_workers) * Number(form.threads_per_worker) || 1);
-  const memory = Math.max(1, memoryGiB(form.worker_memory_limit) * Math.max(1, Number(form.num_workers) || 1));
-  const combinedRate = gpu.pricePerSecond + cpuCores * 0.0000131 + memory * 0.00000222;
-  const lowCost = lowMinutes * 60 * combinedRate;
-  const highCost = highMinutes * 60 * combinedRate;
-  const analyzedText = analysis?.image_count
-    ? `${analysis.image_count} images · ${analysis.total_megapixels.toLocaleString()} source MP · ${formatBytes(analysis.image_bytes)}`
-    : `${imageCount} catalog images · resolution assumed`;
-
-  return <section className="modal-estimate" aria-label="Estimated Modal compute cost">
-    <div className="modal-estimate-heading"><div><span>ESTIMATED MODAL COMPUTE</span><strong>{formatCost(lowCost)}–{formatCost(highCost)}</strong></div><em>{formatDuration(lowMinutes)}–{formatDuration(highMinutes)}</em></div>
-    <div className="modal-estimate-bar"><span style={{ width: `${Math.min(100, Math.max(12, (lowMinutes / highMinutes) * 100))}%` }}/></div>
-    <p>{analyzedText}</p>
-    <small>{displayName(form.config_name)} · {displayName(form.splat_implementation)}{form.splat_implementation === "gsplat" ? ` · ${steps.toLocaleString()} steps` : ""} · {gpu.id}</small>
-    <small>Estimate includes GPU plus approximately {cpuCores} CPU core{cpuCores === 1 ? "" : "s"} and {memory.toFixed(0)} GiB memory. Actual runtime and billing vary with scene complexity, caching, and utilization.</small>
-    <a href="https://modal.com/pricing" target="_blank" rel="noreferrer">Modal pricing · rates checked Aug 13, 2026 ↗</a>
-  </section>;
 }
 
 async function collectEntry(entry: FileSystemEntry, parent = ""): Promise<FolderFile[]> {
@@ -988,6 +897,7 @@ function FolderDropField({ label, optional = false, value, onUploaded, onError }
         await upload(files.map((file) => ({ file, relativePath: file.webkitRelativePath || file.name })));
         event.target.value = "";
       }} />
+    {value && value.analysis.image_count > 0 && <div className="capture-preview" aria-label="Selected capture photographs">{Array.from({length: Math.min(3,value.analysis.image_count)}, (_,index) => <img key={index} src={`/api/uploads/${value.id}/preview?index=${index}`} alt={`${value.name} source photograph ${index+1}`} loading="lazy"/>)}</div>}
     {value && <button type="button" className="folder-remove" onClick={() => onUploaded(null)}>Remove selection</button>}
   </div>;
 }
@@ -1014,11 +924,12 @@ interface SectionProps {
   title: string;
   subtitle: string;
   children: ReactNode;
+  active?: boolean;
 }
 
-function Section({ number, title, subtitle, children }: SectionProps) {
-  return <section className="form-section">
-    <div className="section-heading"><span className="step-number">{number}</span><div><strong>{title}</strong><small>{subtitle}</small></div></div>
+function Section({ number, title, subtitle, children, active = true }: SectionProps) {
+  return <section className="form-section" id={`run-step-${number}`} hidden={!active} aria-labelledby={`step-title-${number}`}>
+    <div className="section-heading"><span className="step-number">{number}</span><div><h2 id={`step-title-${number}`} tabIndex={-1}>{title}</h2><small>{subtitle}</small></div></div>
     {children}
   </section>;
 }
@@ -1046,26 +957,42 @@ function LoaderOptions({ descriptors, values, setValues }: LoaderOptionsProps) {
 function HardwareCard({ device }: { device?: HardwareDevice }) {
   if (!device) return <div className="hardware-card"><strong>Detecting hardware…</strong></div>;
   return <div className="hardware-card">
-    <strong>{device.label}</strong><small>{device.details}{device.memory ? ` · ${device.memory}` : ""}</small>
+    <strong>Device capabilities</strong><small>{device.details}{device.memory ? ` · ${device.memory}` : ""}</small>
     <span className={`capability ${device.supports_gaussian_splatting ? "yes" : "no"}`}>{device.supports_gaussian_splatting ? "Splat ready" : "Reconstruction"}</span>
   </div>;
 }
 
+const EXECUTION_KEYS = [
+  "execution_target", "hardware", "remote_endpoint", "remote_hardware", "modal_gpu",
+  "num_workers", "threads_per_worker", "worker_memory_limit",
+  "dashboard_port", "input_worker", "dask_tmpdir", "num_retry_cluster_connection",
+  "dask_worker_hosts", "dask_scheduler_host", "dask_scheduler_port", "dask_worker_python",
+] as const;
+type ExecutionConfiguration = { name: string; settings: Partial<Pick<RunFormState, typeof EXECUTION_KEYS[number]>> };
+
 interface RunFormProps {
+  onPreparing: (preparing: boolean) => void;
+  reuse?: { settings: Record<string, unknown>; version: number };
   schema: ConfigurationSchema;
   hardware: HardwareCatalog | null;
   samples: SampleDataset[];
   samplesLoading: boolean;
   onStarted: (job: Job) => void;
-  onTabChange: (tab: string) => void;
-  remotePromptKey: number;
   schemaLoading: boolean;
   schemaError: string;
   onRetrySchema: () => void;
 }
 
-function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabChange, remotePromptKey, schemaLoading, schemaError, onRetrySchema }: RunFormProps) {
+function RunForm({ onPreparing, reuse, schema, hardware, samples, samplesLoading, onStarted, schemaLoading, schemaError, onRetrySchema }: RunFormProps) {
   const [form, setForm] = useState<RunFormState>(EMPTY_FORM);
+  const currentForm = useRef(form);
+  currentForm.current = form;
+  const [executionConfigurations, setExecutionConfigurations] = useState<ExecutionConfiguration[]>([]);
+  const [executionName, setExecutionName] = useState("");
+  const [selectedExecution, setSelectedExecution] = useState("");
+  const [executionMessage, setExecutionMessage] = useState("");
+  const [executionBusy, setExecutionBusy] = useState(false);
+  const loadedExecution = useRef(false);
   const [inputMode, setInputMode] = useState<"upload" | "sample" | "previous">("upload");
   const [previousUploads, setPreviousUploads] = useState<UploadedFolder[]>([]);
   const [uploadsLoading, setUploadsLoading] = useState(false);
@@ -1081,8 +1008,24 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [loaderOptions, setLoaderOptions] = useState<LoaderValues>({});
   const [remote, setRemote] = useState<RemoteWorkspace | null>(null);
   const [remoteMessage, setRemoteMessage] = useState("");
-  const [modalTokenMessage, setModalTokenMessage] = useState("");
-  const [modalDiscovering, setModalDiscovering] = useState(false);
+  const [account, setAccount] = useState<{status: string; profile: string; workspace: string; profiles: string[]; login_url: string; code: string; error: string} | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [reuseMessage, setReuseMessage] = useState("");
+  const connectAccount = async (signIn = false, profile = account?.profile || "") => {
+    setAccountBusy(true); setError("");
+    try { setAccount(await getJson("/api/modal/connect", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({profile, sign_in: signIn})})); }
+    catch (reason) { setError(errorMessage(reason)); }
+    finally { setAccountBusy(false); }
+  };
+  useEffect(() => {
+    if (form.execution_target !== "remote") return;
+    void getJson<typeof account>("/api/modal/account").then(setAccount).catch(() => {});
+  }, [form.execution_target]);
+  useEffect(() => {
+    if (account?.status !== "signing_in") return;
+    const timer = window.setInterval(() => { void getJson<typeof account>("/api/modal/account").then(setAccount).catch(() => {}); }, 1000);
+    return () => window.clearInterval(timer);
+  }, [account?.status]);
   const [remoteChecking, setRemoteChecking] = useState(false);
   const [modalDeploying, setModalDeploying] = useState(false);
   const [modalWorkspaceIssue, setModalWorkspaceIssue] = useState(false);
@@ -1098,17 +1041,85 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   const [hydraParametersRevision, setHydraParametersRevision] = useState(0);
   const [jsonConfigurationOpen, setJsonConfigurationOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const submissionPending = useRef(false);
+  useEffect(() => { onPreparing(busy); }, [busy, onPreparing]);
   const [error, setError] = useState("");
   const [datasetFolder, setDatasetFolder] = useState<UploadedFolder | null>(null);
   const [imagesFolder, setImagesFolder] = useState<UploadedFolder | null>(null);
   const [preparedSample, setPreparedSample] = useState<PreparedSample | null>(null);
-  const [sampleBusy, setSampleBusy] = useState(false);
   const [sampleMessage, setSampleMessage] = useState("");
-  const modalDiscoverySequence = useRef(0);
-  const automaticModalEndpoint = useRef("");
+  const connectionSequence = useRef(0);
   const modalGpuChosenByUser = useRef(false);
-  const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) =>
+  const remoteDeviceChosenByUser = useRef(false);
+  const connectionBusy = modalDeploying || remoteChecking;
+  const invalidateConnection = () => {
+    connectionSequence.current += 1;
+    setRemote(null);
+    setRemoteMessage("");
+    setRemoteChecking(false);
+    setModalWorkspaceIssue(false);
+  };
+  const set = <K extends keyof RunFormState>(key: K, value: RunFormState[K]) => {
+    if (key === "remote_hardware") remoteDeviceChosenByUser.current = true;
+    if (["execution_target", "remote_endpoint", "modal_gpu"].includes(key)) {
+      invalidateConnection();
+    }
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const refreshExecutionConfigurations = async () => {
+    const result = await getJson<{ items: ExecutionConfiguration[] }>("/api/execution-configurations");
+    if (!result || !Array.isArray(result.items) || !result.items.every((item) =>
+      item && typeof item.name === "string" && item.settings && typeof item.settings === "object" && !Array.isArray(item.settings))) {
+      throw new Error("Unable to load saved execution configurations: the server returned an invalid configuration list.");
+    }
+    setExecutionConfigurations(result.items);
+  };
+  useEffect(() => { void refreshExecutionConfigurations().catch((reason) => setExecutionMessage(errorMessage(reason))); }, []);
+  const loadExecution = (name: string) => {
+    if (connectionBusy) return;
+    const configuration = executionConfigurations.find((item) => item.name === name);
+    setSelectedExecution(name);
+    if (!configuration) return;
+    loadedExecution.current = true;
+    invalidateConnection();
+    setExecutionName(name);
+    setForm((current) => {
+      const next = { ...current, ...configuration.settings };
+      if (next.execution_target === "remote") next.remote_hardware = "cuda:0";
+      const changedOrigin = ["execution_target", "remote_endpoint"].some((key) => current[key as keyof RunFormState] !== next[key as keyof RunFormState]);
+      return { ...next, ...(changedOrigin ? { modal_api_key: "" } : {}),
+        num_retry_cluster_connection: configuration.settings.num_retry_cluster_connection ?? "", cluster_config: "" };
+    });
+    setExecutionMessage(`Loaded ${name}. Edits below apply to the next run; Save updates the saved copy.`);
+  };
+  const saveExecution = async () => {
+    setExecutionBusy(true);
+    try {
+      if (form.cluster_config) throw new Error("Clear the expert Cluster config path before saving. Saved configurations use the visible machine controls.");
+      const settings: Record<string, unknown> = Object.fromEntries(EXECUTION_KEYS.map((key) => [key, form[key]]));
+      for (const key of ["num_workers", "threads_per_worker", "dask_scheduler_port"]) settings[key] = Number(settings[key]);
+      settings.num_retry_cluster_connection = form.num_retry_cluster_connection === "" ? null : Number(form.num_retry_cluster_connection);
+      const saved = await getJson<ExecutionConfiguration>("/api/execution-configurations", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: executionName.trim(), settings }),
+      });
+      await refreshExecutionConfigurations();
+      setSelectedExecution(saved.name);
+      setExecutionName(saved.name);
+      setExecutionMessage(`Saved ${saved.name} on this Studio host. Credentials are not stored.`);
+    } catch (reason) { setExecutionMessage(errorMessage(reason)); }
+    finally { setExecutionBusy(false); }
+  };
+  const deleteExecution = async () => {
+    setExecutionBusy(true);
+    try {
+      await getJson(`/api/execution-configurations/${encodeURIComponent(selectedExecution)}`, { method: "DELETE" });
+      await refreshExecutionConfigurations();
+      setSelectedExecution(""); setExecutionName("");
+      setExecutionMessage("Saved configuration deleted. Current controls are unchanged.");
+    } catch (reason) { setExecutionMessage(errorMessage(reason)); }
+    finally { setExecutionBusy(false); }
+  };
   const updateHydraOverride = (
     setter: Dispatch<SetStateAction<HydraOverrideMap>>,
     key: string,
@@ -1123,7 +1134,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   });
 
   useEffect(() => {
-    if (!hardware) return;
+    if (!hardware || loadedExecution.current || form.dask_worker_hosts.trim()) return;
     const splatDevice = hardware.devices.find((item) => item.supports_gaussian_splatting);
     setForm((current) => ({
       ...current,
@@ -1161,18 +1172,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     return () => controller.abort();
   }, [form.config_name, form.loader, form.gaussian_splatting_config_name, form.splat_implementation, hydraParametersRevision]);
 
-  useEffect(() => {
-    if (remotePromptKey < 1) return;
-    setForm((current) => ({
-      ...current,
-      execution_target: "remote",
-      remote_connection: "api",
-      remote_provider: "modal",
-      splat_implementation: current.splat_implementation === "none" ? schema.defaults.splat_implementation : current.splat_implementation,
-    }));
-    window.setTimeout(() => document.getElementById("computeTarget")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-  }, [remotePromptKey, schema]);
-
   const modelCatalog = remote?.configuration?.models ?? schema.models;
   const model = modelCatalog.find((item) => item.id === form.config_name);
   const capabilities = model?.capabilities ?? { iterative_splat: false, mvs: false, share_intrinsics: false };
@@ -1181,6 +1180,21 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   })), [schema, capabilities.iterative_splat]);
   const splatMeta = schema.splat_implementations.find((item) => item.id === form.splat_implementation);
   const selectedHardware = hardware?.devices.find((item) => item.id === form.hardware);
+  const hasExternalWorkers = form.execution_target === "local" && Boolean(form.dask_worker_hosts.trim());
+  const modalWorkspaceSelected = form.execution_target === "remote";
+  const selectedRemoteHardware = remote?.hardware.devices.find((item) => item.id === form.remote_hardware);
+  const deviceError = modalWorkspaceSelected && form.remote_hardware !== "cuda:0"
+    ? "This Modal workspace runs on cuda:0. Select its GPU device before starting."
+    : !hasExternalWorkers && form.execution_target === "remote" && remote && (!selectedRemoteHardware || (selectedRemoteHardware.status && selectedRemoteHardware.status !== "available"))
+      ? "Choose an available device on the remote machine before starting."
+      : !hasExternalWorkers && form.execution_target === "local" && hardware && (!selectedHardware || (selectedHardware.status && selectedHardware.status !== "available"))
+        ? "Choose an available device on this machine before starting."
+        : "";
+
+  useEffect(() => {
+    if (!modalWorkspaceSelected || loadedExecution.current || remoteDeviceChosenByUser.current) return;
+    setForm((current) => current.remote_hardware === "cuda:0" ? current : { ...current, remote_hardware: "cuda:0" });
+  }, [modalWorkspaceSelected]);
   const machineProfile = advancedMachineProfile(form, hardware, selectedHardware);
   const selectedSample = samples.find((item) => item.id === form.sample_id);
   const datasetAnalysis = inputMode === "sample"
@@ -1199,20 +1213,12 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     form.splat_implementation,
     form.run_mvs,
   ].join(":");
-  const modalGpuOptions = MODAL_GPU_PRICING.map((item) => ({
+  const modalGpuOptions = MODAL_GPU_CHOICES.map((item) => ({
     ...item,
-    label: item.id === modalGpuRecommendation?.gpu.id ? `${item.label} · Recommended` : item.label,
+    label: item.id === modalGpuRecommendation?.gpu.id ? `${item.label} · Suggested` : item.label,
   }));
-  const remoteProviders: Choice[] = [
-    { id: "modal", label: "Modal" },
-    { id: "lambda", label: "Lambda Cloud — Coming Soon!", status: "coming-soon" },
-    { id: "runpod", label: "RunPod — Coming Soon!", status: "coming-soon" },
-    { id: "vast", label: "Vast.ai — Coming Soon!", status: "coming-soon" },
-    { id: "aws", label: "AWS EC2 — Coming Soon!", status: "coming-soon" },
-  ];
-
   const useDeployedModalWorkspace = (gpu: string) => {
-    const gpuInfo = MODAL_GPU_PRICING.find((item) => item.id === gpu);
+    const gpuInfo = MODAL_GPU_CHOICES.find((item) => item.id === gpu);
     const workspace: RemoteWorkspace = {
       configuration: schema,
       verified: false,
@@ -1229,12 +1235,12 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       },
     };
     setRemote(workspace);
-    set("remote_hardware", "cuda:0");
     return workspace;
   };
 
   useEffect(() => {
-    if (!modalGpuRecommendation || modalGpuChosenByUser.current) return;
+    if (form.execution_target !== "remote") return;
+    if (!modalGpuRecommendation || loadedExecution.current || modalGpuChosenByUser.current || connectionBusy) return;
     if (form.modal_gpu === modalGpuRecommendation.gpu.id) return;
     set("modal_gpu", modalGpuRecommendation.gpu.id);
     if (form.remote_endpoint) {
@@ -1242,9 +1248,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       setModalWorkspaceIssue(true);
       setRemoteMessage("The dataset changed the recommended VM. Update the Modal workspace to apply it, then verify readiness.");
     }
-  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint]);
+  }, [modalGpuRecommendation?.gpu.id, modalRecommendationKey, form.modal_gpu, form.remote_endpoint, form.execution_target, connectionBusy]);
 
   useEffect(() => {
+    if (loadedExecution.current || hasExternalWorkers) return;
     setForm((current) => ({
       ...current,
       num_workers: machineProfile.workers,
@@ -1260,23 +1267,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       : selectedSample.prepared ? "Cached and ready" : "Will download when the run starts");
   }, [form.execution_target, selectedSample, preparedSample?.path]);
 
-  const updateModalCredential = (field: "modal_token_id" | "modal_token_secret", value: string) => {
-    modalDiscoverySequence.current += 1;
-    setModalDiscovering(false);
-    setRemoteChecking(false);
-    const parsed = parseModalTokenCommand(value);
-    setRemote(null);
-    setModalWorkspaceIssue(false);
-    setRemoteMessage("");
-    if (parsed) {
-      setForm((current) => ({ ...current, modal_token_id: parsed.tokenId, modal_token_secret: parsed.tokenSecret, modal_api_key: "" }));
-      setModalTokenMessage("Token command parsed. Both fields are filled.");
-      return;
-    }
-    setForm((current) => ({ ...current, [field]: value, modal_api_key: "" }));
-    setModalTokenMessage("");
-  };
-
   const updateModalGpu = (value: string) => {
     modalGpuChosenByUser.current = true;
     set("modal_gpu", value);
@@ -1286,42 +1276,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   };
 
   useEffect(() => {
-    if (form.execution_target !== "remote" || form.remote_connection !== "api" || form.remote_provider !== "modal") return;
-    if (!form.modal_token_id.startsWith("ak-") || !form.modal_token_secret.startsWith("as-")) return;
-    const sequence = ++modalDiscoverySequence.current;
-    const timer = window.setTimeout(async () => {
-      setModalDiscovering(true);
-      setRemoteMessage("Finding your deployed GTSFM app on Modal…");
-      try {
-        const discovered = await getJson<ModalDiscovery>("/api/modal/discover", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token_id: form.modal_token_id, token_secret: form.modal_token_secret }),
-        });
-        if (sequence !== modalDiscoverySequence.current) return;
-        setForm((current) => {
-          if (current.remote_endpoint && current.remote_endpoint !== automaticModalEndpoint.current) {
-            return { ...current, modal_api_key: discovered.api_key };
-          }
-          return { ...current, remote_endpoint: discovered.endpoint, modal_api_key: discovered.api_key };
-        });
-        automaticModalEndpoint.current = discovered.endpoint;
-        useDeployedModalWorkspace(form.modal_gpu);
-        setModalWorkspaceIssue(false);
-        setRemoteMessage(`Found ${discovered.app_name} · ${discovered.function_name}. Update it to this GTSFM version, or verify the existing workspace.`);
-      } catch (reason) {
-        if (sequence === modalDiscoverySequence.current) {
-          setModalWorkspaceIssue(true);
-          setRemoteMessage(errorMessage(reason));
-        }
-      } finally {
-        if (sequence === modalDiscoverySequence.current) setModalDiscovering(false);
-      }
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [form.execution_target, form.remote_connection, form.remote_provider, form.modal_token_id, form.modal_token_secret]);
-
-  useEffect(() => {
     if (form.splat_implementation === "gsplat" && model && !capabilities.iterative_splat) set("splat_implementation", "none");
   }, [form.splat_implementation, model, capabilities.iterative_splat]);
 
@@ -1329,46 +1283,16 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
     if (form.share_intrinsics && model && !capabilities.share_intrinsics) set("share_intrinsics", false);
   }, [form.share_intrinsics, model, capabilities.share_intrinsics]);
 
-  async function inspectRemote(endpoint: string, apiKey: string) {
+  async function inspectRemote(endpoint: string, apiKey: string, sequence = connectionSequence.current) {
     const payload = await getJson<RemoteWorkspace>("/api/remote/inspect", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ endpoint, api_key: apiKey, remote_provider: form.remote_provider }) });
-    setRemote({ ...payload, verified: true });
-    const gsDevice = payload.hardware.devices.find((item) => item.supports_gaussian_splatting);
-    set("remote_hardware", gsDevice?.id ?? payload.hardware.devices[0]?.id ?? "");
+      body: JSON.stringify({ endpoint, api_key: apiKey }) });
+    if (sequence === connectionSequence.current) setRemote({ ...payload, verified: true });
     return payload;
   }
 
-  const connectRemote = async () => {
-    if (form.remote_connection !== "api") {
-      setRemoteMessage("SSH connection testing is coming soon. You can finish the VM details now.");
-      return;
-    }
-    if (!form.remote_endpoint || !modalBearerToken(form)) {
-      setRemoteMessage("Deploy the GTSFM Modal workspace first, or wait for an existing deployment to be discovered.");
-      return;
-    }
-    setRemoteChecking(true);
-    setModalWorkspaceIssue(false);
-    setRemote((current) => current ? { ...current, verified: false } : null);
-    setRemoteMessage("Checking the lightweight Modal control service…");
-    try {
-      const payload = await inspectRemote(form.remote_endpoint, modalBearerToken(form));
-      setModalWorkspaceIssue(false);
-      setRemoteMessage(`${payload.hardware.summary}. The control service is ready; the GPU stays off until you run a reconstruction.`);
-    } catch (reason) {
-      setModalWorkspaceIssue(true);
-      setRemoteMessage(`Workspace check failed. Update the Modal workspace before running. ${errorMessage(reason)}`);
-    } finally {
-      setRemoteChecking(false);
-    }
-  };
-
   const deployModal = async () => {
-    if (!form.modal_token_id.startsWith("ak-") || !form.modal_token_secret.startsWith("as-")) {
-      setRemoteMessage("Enter both Modal token fields before deploying.");
-      return;
-    }
-    modalDiscoverySequence.current += 1;
+    if (account?.status !== "connected") throw new Error("Connect your Modal account before running.");
+    const sequence = connectionSequence.current;
     setModalDeploying(true);
     setModalWorkspaceIssue(false);
     setRemote(null);
@@ -1378,17 +1302,19 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token_id: form.modal_token_id,
-          token_secret: form.modal_token_secret,
+          profile: account.profile,
+          force: modalWorkspaceIssue,
           gpu: form.modal_gpu,
           cpu: Math.max(1, Number(form.num_workers) * Number(form.threads_per_worker) || 1),
           memory_mb: Math.max(4096, Math.round(memoryGiB(form.worker_memory_limit) * Math.max(1, Number(form.num_workers) || 1) * 1024)),
         }),
       });
+      if (sequence !== connectionSequence.current) return;
       setModalDeployment(deployment);
       while (["queued", "running", "cancelling"].includes(deployment.status)) {
         await new Promise((resolve) => window.setTimeout(resolve, 1000));
         deployment = await getJson<ModalDeployment>(`/api/modal/deploy/${encodeURIComponent(deployment.id)}`);
+        if (sequence !== connectionSequence.current) return;
         setModalDeployment(deployment);
       }
       if (deployment.status === "cancelled") {
@@ -1396,7 +1322,6 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         return;
       }
       if (deployment.status === "failed") throw new Error(deployment.error || "Modal deployment failed");
-      automaticModalEndpoint.current = deployment.endpoint;
       setForm((current) => ({ ...current, remote_endpoint: deployment.endpoint, modal_api_key: deployment.api_key }));
       useDeployedModalWorkspace(deployment.gpu);
       setModalDeployment({
@@ -1408,8 +1333,10 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       });
       setRemoteChecking(true);
       try {
-        await inspectRemote(deployment.endpoint, deployment.api_key);
+        await inspectRemote(deployment.endpoint, deployment.api_key, sequence);
+        if (sequence !== connectionSequence.current) return;
       } catch (reason) {
+        if (sequence !== connectionSequence.current) return;
         const message = `Deployment finished, but the workspace health check failed: ${errorMessage(reason)}`;
         setRemote((current) => current ? { ...current, verified: false } : null);
         setModalWorkspaceIssue(true);
@@ -1423,7 +1350,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         });
         throw new Error(message);
       } finally {
-        setRemoteChecking(false);
+        if (sequence === connectionSequence.current) setRemoteChecking(false);
       }
       setModalDeployment({
         ...deployment,
@@ -1437,7 +1364,9 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       });
       setModalWorkspaceIssue(false);
       setRemoteMessage(`Modal ${deployment.gpu} workspace passed its health check and is ready to run.`);
+      return deployment;
     } catch (reason) {
+      if (sequence !== connectionSequence.current) return;
       const message = errorMessage(reason);
       setModalWorkspaceIssue(true);
       setRemoteMessage(/Request failed \(404\)/.test(message)
@@ -1488,22 +1417,27 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setBusy(true); setError("");
+    event.preventDefault();
+    if (submissionPending.current) return;
+    submissionPending.current = true;
+    setBusy(true); setError("");
     try {
-      if (form.execution_target === "remote" && form.remote_connection === "ssh") {
-        throw new Error("SSH execution is not available yet. Choose API to run on Modal.");
-      }
-      if (form.execution_target === "remote" && form.remote_provider === "modal" && !remote?.verified) {
-        throw new Error("The Modal workspace must pass its health check before a reconstruction can start.");
+      if (deviceError) throw new Error(deviceError);
+      let endpoint = form.remote_endpoint, apiKey = form.modal_api_key;
+      if (modalWorkspaceSelected) {
+        const deployment = await deployModal();
+        if (!deployment) throw new Error("Modal preparation did not finish. Check its status below and retry.");
+        endpoint = deployment.endpoint; apiKey = deployment.api_key;
       }
       const expertOverrides = form.advanced_overrides.split("\n");
-      const payload = { ...form,
+      const payload = { ...form, remote_endpoint: endpoint,
         loader: form.loader,
         hydra_overrides: modelHydraOverrides,
         advanced_overrides: expertOverrides.map((line) => line.trim()).filter(Boolean),
         gaussian_splatting_overrides: splatHydraOverrides,
-        api_key: form.execution_target === "remote" ? modalBearerToken(form) : "", loader_options: loaderOptions,
+        api_key: form.execution_target === "remote" ? apiKey : "", loader_options: loaderOptions,
         hardware: form.execution_target === "remote" ? form.remote_hardware : form.hardware,
+        max_run_minutes: Number(form.max_run_minutes),
         max_resolution: form.max_resolution ? Number(form.max_resolution) : null,
         num_workers: Number(form.num_workers), threads_per_worker: Number(form.threads_per_worker),
         gs_max_steps: Number(form.gs_max_steps), live_preview_interval: Number(form.live_preview_interval),
@@ -1511,46 +1445,60 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         num_matched: form.num_matched ? Number(form.num_matched) : null,
         num_retry_cluster_connection: form.num_retry_cluster_connection ? Number(form.num_retry_cluster_connection) : null };
       const job = await getJson<Job>("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      onStarted(job); onTabChange("activity");
-    } catch (reason) { setError(errorMessage(reason)); } finally { setBusy(false); }
+      onStarted(job);
+    } catch (reason) { setError(errorMessage(reason)); } finally { submissionPending.current = false; setBusy(false); }
   };
 
-  const modalWorkspaceSelected = form.execution_target === "remote" && form.remote_connection === "api" && form.remote_provider === "modal";
-  const modalWorkspaceState: ModalWorkspaceReadiness = remote?.verified
-    ? "ready"
-    : modalDeploying || modalDiscovering || remoteChecking
-      ? "working"
-      : modalWorkspaceIssue
-        ? "attention"
-        : form.remote_endpoint
-          ? "found"
-        : "idle";
-  const modalWorkspaceDetail = remoteMessage || {
-    idle: "Enter Modal credentials, then deploy or discover a workspace.",
-    found: "Choose Update to apply this GTSFM version, or verify the existing deployment.",
-    working: "Preparing the lightweight control service. The GPU starts only when a reconstruction runs.",
-    ready: "Health checks passed. Reconstruction can start.",
-    attention: "Update or verify this workspace before starting a run.",
-  }[modalWorkspaceState];
-  const modalActionLabel = modalDeploying
-    ? modalDeployment?.phase === "verifying" ? "Starting & verifying Modal workspace…" : "Setting up Modal workspace…"
-    : modalDiscovering
-      ? "Finding Modal workspace…"
-      : remoteChecking
-        ? "Starting & verifying Modal workspace…"
-        : modalWorkspaceSelected && !remote?.verified
-          ? "Prepare Modal workspace first"
-          : "Run reconstruction";
+  const sourceReady = Boolean(form.dataset_dir || (inputMode === "sample" && preparedSample));
+  const imageCount = inputMode === "sample" ? preparedSample?.sample.image_count || 0 : datasetAnalysis?.image_count || 0;
+  const sourceName = inputMode === "sample" ? samples.find((item) => item.id === form.sample_id)?.label : inputMode === "previous" ? previousFolder?.name : datasetFolder?.name;
+  const computeName = form.execution_target === "local" ? selectedHardware?.label || "This machine" : `Modal ${form.modal_gpu}`;
+  useEffect(() => {
+    if (!reuse) return;
+    const settings = reuse.settings;
+    const sample = samples.find((item) => item.id === settings.sample_id);
+    if (sample) { setInputMode("sample"); chooseSample(sample.id); }
+    else { setInputMode("upload"); setDatasetFolder(null); setImagesFolder(null); setPreparedSample(null); }
+    const excluded = new Set<string>([...EXECUTION_KEYS, "sample_id", "dataset_dir", "images_dir", "cluster_config"]);
+    const allowed = Object.fromEntries(Object.entries(settings).filter(([key]) =>
+      key in EMPTY_FORM && !excluded.has(key) && !key.startsWith("modal_")));
+    setForm((current) => ({
+      ...current,
+      ...allowed,
+      sample_id: sample?.id ?? "",
+      dataset_dir: sample ? "" : String(settings.dataset_dir ?? ""),
+      images_dir: sample ? "" : String(settings.images_dir ?? ""),
+      name: `${String(settings.name || "experiment")}-copy`,
+      advanced_overrides: Array.isArray(settings.advanced_overrides)
+        ? settings.advanced_overrides.join("\n")
+        : typeof settings.advanced_overrides === "string" ? settings.advanced_overrides : "",
+    }));
+    setLoaderOptions((settings.loader_options || {}) as LoaderValues);
+    setModelHydraOverrides((settings.hydra_overrides || {}) as HydraOverrideMap);
+    setSplatHydraOverrides((settings.gaussian_splatting_overrides || {}) as HydraOverrideMap);
+    setReuseMessage("Settings loaded. Review the images and compute, then run when ready.");
+    const controller = new AbortController();
+    if (!sample && settings.dataset_dir) {
+      void getJson<{items: UploadedFolder[]}>("/api/uploads", {signal: controller.signal}).then(({items}) => {
+        if (controller.signal.aborted || currentForm.current.dataset_dir !== settings.dataset_dir) return;
+        setDatasetFolder(items.find((item) => item.path === settings.dataset_dir) || null);
+        setImagesFolder(items.find((item) => item.path === settings.images_dir) || null);
+      }).catch(() => {});
+    }
+    return () => controller.abort();
+  }, [reuse?.version]);
 
   return <form id="runForm" onSubmit={submit}>
-    <div className="panel-intro"><span>NEW RECONSTRUCTION</span>
-      {schemaLoading ? <small className="catalog-sync"><RefreshCw className="spin" size={10}/> Syncing workspace options…</small>
-        : schemaError ? <button className="catalog-sync failed" type="button" onClick={onRetrySchema}><CircleAlert size={10}/> Options offline · Retry</button>
-        : <button className="catalog-sync" type="button" onClick={onRetrySchema}><RefreshCw size={10}/> Refresh options</button>}
-      <p>Configure the source, pipeline, and compute target.</p>
+    <div className="run-page-heading">
+      <div><span className="eyebrow">GTSfM experiment workspace</span><h1>New experiment</h1><p>Choose images, a preset, and compute. Inspect and reuse the result here.</p></div>
+      {schemaLoading ? <small className="catalog-sync"><RefreshCw className="spin" size={12}/> Loading options</small>
+        : schemaError ? <button className="catalog-sync failed" type="button" onClick={onRetrySchema}><CircleAlert size={12}/> Options offline · Retry</button>
+        : <button className="catalog-sync" type="button" onClick={onRetrySchema}><RefreshCw size={12}/> Refresh options</button>}
     </div>
-    <Section number="01" title="Input" subtitle="Choose the images to reconstruct">
-      <TextField label="Run name" value={form.name} onChange={(value) => set("name", value)} autoComplete="off" />
+    {reuseMessage && <p className="reuse-notice" role="status">{reuseMessage}</p>}
+    <fieldset className="run-body" disabled={busy}><div className="run-fields">
+    <Section number="01" title="Add your images" subtitle="" active>
+      <TextField label="Experiment name" value={form.name} onChange={(value) => set("name", value)} autoComplete="off" />
       <div className="segmented input-source" role="group" aria-label="Input source">
         <button type="button" className={`target-choice ${inputMode === "upload" ? "active" : ""}`} onClick={() => {
           setInputMode("upload"); setLoaderOptions({});
@@ -1561,7 +1509,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           const recommendations = preparedSample?.sample.recommendations;
           setLoaderOptions(recommendations?.loader_options ?? {});
           setForm((current) => ({ ...current, sample_id: preparedSample?.sample.id ?? "", dataset_dir: preparedSample?.path ?? "", images_dir: "", loader: recommendations?.loader ?? current.loader }));
-        }}><Database size={13} /> GTSFM samples</button>
+        }}><Database size={13} /> Sample datasets</button>
         <button type="button" className={`target-choice ${inputMode === "previous" ? "active" : ""}`} onClick={() => {
           setInputMode("previous"); setLoaderOptions({}); setError("");
           setForm((current) => ({ ...current, sample_id: "", dataset_dir: previousFolder?.path ?? "", images_dir: previousImages?.path ?? "", loader: inputMode === "sample" ? EMPTY_FORM.loader : current.loader }));
@@ -1569,13 +1517,13 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         }}><FolderUp size={13} /> Previous uploads</button>
       </div>
       {inputMode === "upload" ? <>
-        <FolderDropField label="Dataset folder" value={datasetFolder} onError={setError} onUploaded={(folder) => {
+        <FolderDropField label="Image or dataset folder" value={datasetFolder} onError={setError} onUploaded={(folder) => {
           setDatasetFolder(folder); set("dataset_dir", folder?.path ?? "");
           if (folder && form.name === "my-scene") set("name", folder.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "my-scene");
         }} />
-        <FolderDropField label="Separate images folder" optional value={imagesFolder} onError={setError} onUploaded={(folder) => {
+        <details className="disclosure source-details"><summary>Separate image folder or dataset options</summary><FolderDropField label="Separate images folder" optional value={imagesFolder} onError={setError} onUploaded={(folder) => {
           setImagesFolder(folder); set("images_dir", folder?.path ?? "");
-        }} />
+        }} /></details>
       </> : inputMode === "previous" ? <div className="sample-picker">
         <SelectField label="Previously uploaded folder" value={previousFolder?.id ?? ""}
           options={previousUploads.map((folder) => ({ id: folder.id, label: `${folder.name} · ${folder.analysis.image_count} image${folder.analysis.image_count === 1 ? "" : "s"} · ${folder.uploaded_at ? new Date(folder.uploaded_at * 1000).toLocaleString() : folder.id}` }))}
@@ -1594,15 +1542,16 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         {uploadsError && <p className="job-error" role="alert">{uploadsError}</p>}
         <button type="button" className="text-button" disabled={uploadsLoading} onClick={() => void refreshUploads()}><RefreshCw size={12} /> Refresh uploads</button>
       </div> : <div className="sample-picker">
-        <SelectField label="Sample scene" value={form.sample_id} options={samples} empty={samplesLoading ? "Loading GTSFM samples…" : "Choose a GTSFM sample…"} onChange={chooseSample} disabled={sampleBusy || samplesLoading} />
+        <SelectField label="Sample scene" value={form.sample_id} options={samples} empty={samplesLoading ? "Loading Sample datasets…" : "Choose a GTSFM sample…"} onChange={chooseSample} disabled={samplesLoading} />
         {form.sample_id && <div className={`sample-card ${preparedSample ? "ready" : ""}`}>
-          <span className="sample-state">{sampleBusy ? <RefreshCw className="spin" size={14} /> : preparedSample ? <Check size={14} /> : <Database size={14} />}</span>
+          <span className="sample-state">{preparedSample ? <Check size={14} /> : <Database size={14} />}</span>
           <div><strong>{samples.find((item) => item.id === form.sample_id)?.label}</strong><small>{samples.find((item) => item.id === form.sample_id)?.description}</small>
             <span>{sampleMessage} · {samples.find((item) => item.id === form.sample_id)?.image_count} images · <a href={samples.find((item) => item.id === form.sample_id)?.source_url} target="_blank" rel="noreferrer">View on GitHub ↗</a></span></div>
         </div>}
         <p className="field-help sample-help">Dataset format, VGGT model, resolution, and available loader settings are applied automatically.</p>
       </div>}
-      <SelectField
+      {inputMode === "sample" && form.sample_id === "lund-door" && <div className="capture-preview" aria-label="Lund Door source photographs">{[1,6,12].map((index) => <img key={index} src={`/static/samples/lund-door/${index}.jpg`} alt={`Lund Door photograph ${index}`}/>)}</div>}
+      <details className="disclosure dataset-options"><summary>Dataset format & loader options <span>{displayName(form.loader)}</span></summary><SelectField
         label="Dataset format"
         value={form.loader}
         options={schema.loaders}
@@ -1611,10 +1560,11 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           setLoaderOptions({});
         }}
       />
-      <LoaderOptions descriptors={schema.loader_options[form.loader] ?? []} values={loaderOptions} setValues={setLoaderOptions} />
+      <LoaderOptions descriptors={schema.loader_options[form.loader] ?? []} values={loaderOptions} setValues={setLoaderOptions} /></details>
+      {form.dataset_dir && !datasetFolder && inputMode === "upload" && <p className="reuse-notice">Reusing {form.dataset_dir.split(/[\\/]/).filter(Boolean).at(-1)}. Choose a folder to replace it.</p>}
     </Section>
-    <Section number="02" title="Models" subtitle="VGGT is the default reconstruction model">
-      <SelectField label="Reconstruction model" value={form.config_name} options={modelCatalog} onChange={(value) => { set("config_name", value); setModelHydraOverrides({}); }} />
+    <Section number="02" title="Choose your pipeline" subtitle="Start with a preset. Fine-tune only what your scene needs." active>
+      <SelectField label="Reconstruction model" value={form.config_name} options={modelCatalog.filter((item) => ["vggt", "fastvggt", "sift_front_end", form.config_name].includes(item.id))} onChange={(value) => { set("config_name", value); setModelHydraOverrides({}); }} />
       <SelectField label="Splat implementation" value={form.splat_implementation} options={splatOptions} onChange={(value) => set("splat_implementation", value)} />
       <p className="field-help">{splatMeta?.description}</p>
       {form.splat_implementation === "gsplat" && <div className="nested-options">
@@ -1623,7 +1573,7 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
       <Collapsible.Root className="advanced-options configuration-advanced" open={configurationAdvanced} onOpenChange={setConfigurationAdvanced}>
         <Collapsible.Trigger className="advanced-trigger"><span><SlidersHorizontal size={13} /><span className="advanced-trigger-copy">Advanced Configuration<small>{Object.keys(modelHydraOverrides).length + Object.keys(splatHydraOverrides).length} Hydra overrides</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
         <Collapsible.Content className="advanced-content">
-          <p className="configuration-intro">Tune reconstruction and splat optimization without editing YAML. Empty fields inherit the selected preset.</p>
+          <SelectField label="All reconstruction presets" value={form.config_name} options={modelCatalog} onChange={(value) => {set("config_name", value); setModelHydraOverrides({});}}/><p className="configuration-intro">Tune reconstruction and splat optimization without editing YAML. Empty fields inherit the selected preset.</p>
           <div className="configuration-json-action">
             <button type="button" onClick={() => setJsonConfigurationOpen(true)} disabled={!hydraParameters || hydraParametersLoading}>{"{ }"} Paste JSON configuration</button>
             <small>Import a preset-aware JSON object instead of filling fields individually.</small>
@@ -1669,68 +1619,55 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
         onClose={() => setJsonConfigurationOpen(false)}
       />}
     </Section>
-    <Section number="03" title="Compute" subtitle="Run here or on a remote VM">
-      <div className="segmented" id="computeTarget" role="group" aria-label="Execution target">
-        <button type="button" className={`target-choice ${form.execution_target === "local" ? "active" : ""}`} onClick={() => set("execution_target", "local")}><Cpu size={13} /> This machine</button>
-        <button type="button" className={`target-choice ${form.execution_target === "remote" ? "active" : ""}`} onClick={() => setForm((current) => ({ ...current, execution_target: "remote", splat_implementation: current.splat_implementation === "none" ? schema.defaults.splat_implementation : current.splat_implementation }))}><Server size={13} /> Remote VM</button>
+    </div><aside className="compute-column">
+    <Section number="03" title="Choose where to run" subtitle="Use this machine or connect your own remote compute." active>
+      <div className="compute-choices" id="computeTarget" role="group" aria-label="Compute destination">
+        {[{id: "local", label: "This computer", detail: "Use the hardware available here", icon: <Cpu size={22}/>}, {id: "modal", label: "Modal cloud", detail: "Connect once. GPU setup is automatic.", icon: <Server size={22}/>}].map((choice) => <button type="button" key={choice.id} aria-pressed={choice.id === (form.execution_target === "local" ? "local" : "modal")} disabled={busy || connectionBusy} onClick={() => { invalidateConnection(); setForm((current) => ({...current, execution_target: choice.id === "local" ? "local" : "remote", remote_hardware: choice.id === "modal" ? "cuda:0" : current.remote_hardware})); }}>{choice.icon}<span><strong>{choice.label}</strong><small>{choice.detail}</small></span><span className="choice-dot"/></button>)}
       </div>
+      {form.execution_target === "local" && form.splat_implementation !== "none" && hardware && !hardware.devices.some((device) => device.supports_gaussian_splatting && (!device.status || device.status === "available")) && <HardwareWarning hardware={hardware} onUseRemote={() => set("execution_target", "remote")}/>}
+      {hasExternalWorkers && <>
+        <TextField label="Worker device" value={form.execution_target === "local" ? form.hardware : form.remote_hardware} onChange={(value) => set(form.execution_target === "local" ? "hardware" : "remote_hardware", value)} placeholder="cpu, cuda:0, or rocm:0" />
+        <p className="field-help">Select the device on each SSH worker. The control machine can be CPU-only.</p>
+      </>}
       {form.execution_target === "local" ? <>
-        {hardware ? <><SelectField label="Hardware" value={form.hardware} options={hardware.devices} onChange={(value) => set("hardware", value)} /><HardwareCard device={selectedHardware} /></> : <div className="hardware-card detecting"><RefreshCw className="spin" size={13}/><div><strong>Detecting compute devices…</strong><small>You can configure the rest of the run while this finishes.</small></div></div>}
+        {!hasExternalWorkers && (hardware ? <><SelectField label="Hardware" value={form.hardware} options={hardware.devices} onChange={(value) => set("hardware", value)} /><HardwareCard device={selectedHardware} /></> : <div className="hardware-card detecting"><RefreshCw className="spin" size={13}/><div><strong>Detecting compute devices…</strong><small>You can configure the rest of the run while this finishes.</small></div></div>)}
       </> : <div className="nested-options remote-vm-options">
-        <SelectField label="Connection method" value={form.remote_connection} options={[
-          { id: "api", label: "API" }, { id: "ssh", label: "SSH" },
-        ]} onChange={(value) => { set("remote_connection", value as RunFormState["remote_connection"]); setRemote(null); setRemoteMessage(""); }} />
-        {form.remote_connection === "api" ? <>
-          <SelectField label="Service" value={form.remote_provider} options={remoteProviders} onChange={(value) => { set("remote_provider", value); setRemote(null); }} />
-          {form.remote_provider === "modal" && <div className="provider-panel">
-            <div className="provider-heading"><span className="provider-mark">M</span><div><strong>Modal</strong><small>Connect with your Modal account token</small></div><span className="provider-status">AVAILABLE</span></div>
-            <SelectField label="Modal VM GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={updateModalGpu} />
-            <ModalGpuRecommendationCard recommendation={modalGpuRecommendation} selectedGpu={form.modal_gpu} onApply={() => {
-              if (modalGpuRecommendation) updateModalGpu(modalGpuRecommendation.gpu.id);
-            }}/>
-            <ModalCostEstimate form={form} analysis={datasetAnalysis} fallbackImageCount={selectedSample?.image_count ?? 0}/>
-            <p className="field-help modal-command-help">Enter the two values separately, or paste the complete <code>modal token set --token-id … --token-secret …</code> command into either field.</p>
-            <div className="form-grid">
-              <TextField label="Token ID" value={form.modal_token_id} onChange={(value) => updateModalCredential("modal_token_id", value)} autoComplete="off" spellCheck={false} placeholder="ak-…" />
-              <TextField label="Token secret" type="password" value={form.modal_token_secret} onChange={(value) => updateModalCredential("modal_token_secret", value)} autoComplete="new-password" spellCheck={false} placeholder="as-…" />
-            </div>
-            {modalTokenMessage && <div className="credential-success"><Check size={12} /> {modalTokenMessage}</div>}
-            <TextField label="GTSFM endpoint" type="url" value={form.remote_endpoint} onChange={(value) => {
-              set("remote_endpoint", value);
-              setRemote(null);
-              setModalWorkspaceIssue(false);
-              setRemoteMessage("Endpoint changed. Start and verify this workspace before running.");
-            }} placeholder={modalDiscovering ? "Discovering your Modal endpoint…" : "Filled after credentials are verified"} />
-            <button className="modal-deploy-action full-width" type="button" onClick={deployModal} disabled={modalDiscovering || modalDeploying || !form.modal_token_id || !form.modal_token_secret}><Server size={13} /> {modalDeploying ? "Setup in progress…" : form.remote_endpoint ? "Update Modal workspace" : "Set up & deploy Modal workspace"}</button>
-            {modalDeployment && <ModalDeploymentProgress deployment={modalDeployment} onCancel={stopModalDeployment} onExpand={() => setModalLogExpanded(true)}/>} 
-            {modalDeployment && modalLogExpanded && <ModalDeploymentDialog deployment={modalDeployment} onCancel={stopModalDeployment} onClose={() => setModalLogExpanded(false)}/>} 
-            {form.remote_endpoint && form.modal_api_key && <button className="secondary-action full-width" type="button" onClick={() => connectRemote()} disabled={modalDiscovering || modalDeploying || remoteChecking}>{remoteChecking ? <RefreshCw className="spin" size={13}/> : remote?.verified ? <Check size={13}/> : <MonitorCog size={13}/>} {remoteChecking ? "Starting & checking workspace…" : remote?.verified ? "Modal workspace ready" : "Start & verify workspace"}</button>}
-            <ModalWorkspaceStatus state={modalWorkspaceState} detail={modalWorkspaceDetail}/>
-            {remote && <SelectField label="Remote hardware" value={form.remote_hardware} options={remote.hardware.devices} onChange={(value) => set("remote_hardware", value)} />}
-          </div>}
-        </> : <div className="provider-panel">
-          <div className="provider-heading"><span className="provider-mark ssh"><Terminal size={14} /></span><div><strong>Direct VM</strong><small>Connect to a machine you control</small></div><span className="provider-status soon">COMING SOON!</span></div>
-          <div className="form-grid">
-            <TextField label="Host" value={form.ssh_host} onChange={(value) => set("ssh_host", value)} placeholder="gpu-box.example.com" />
-            <TextField label="Port" type="number" min="1" max="65535" value={form.ssh_port} onChange={(value) => set("ssh_port", value)} />
-            <TextField label="Username" value={form.ssh_username} onChange={(value) => set("ssh_username", value)} autoComplete="username" placeholder="ubuntu" />
-            <SelectField label="Authentication" value={form.ssh_authentication} options={[
-              { id: "agent", label: "SSH agent" }, { id: "key", label: "Private key" },
-            ]} onChange={(value) => set("ssh_authentication", value as RunFormState["ssh_authentication"])} />
+          <div className="provider-panel modal-account">
+            <h3>{account?.status === "connected" ? `Connected to ${account.workspace || account.profile}` : "Connect your Modal account"}</h3>
+            <p>{account?.status === "connected" ? "Your native Modal profile is ready. Run will build and check the workspace before starting compute." : "Sign in through Modal in your browser. Credentials stay on this Studio host."}</p>
+            {account?.profiles && account.profiles.length > 1 && <SelectField label="Modal account" value={account.profile} options={account.profiles.map((name) => ({id: name, label: name}))} empty="Choose a saved account" onChange={(value) => { invalidateConnection(); void connectAccount(false, value); }}/>}
+            {account?.status !== "connected" && <button type="button" className="secondary-action full-width" disabled={accountBusy || account?.status === "signing_in"} onClick={() => void connectAccount()}>{accountBusy ? "Checking account…" : account?.status === "signing_in" ? "Waiting for browser sign-in…" : account?.profiles.length ? "Connect saved Modal account" : "Sign in to Modal"}</button>}
+            {account?.login_url && <a className="primary-action" href={account.login_url} target="_blank" rel="noreferrer">Continue to Modal ↗</a>}
+            {account?.code && <p>Verification code: <strong>{account.code}</strong></p>}
+            {account?.error && <p className="job-error" role="alert">{account.error}</p>}
+            {account?.status === "error" && <button type="button" className="text-button" onClick={() => void connectAccount(true)}>Sign in again in browser</button>}
+            <SelectField label="GPU" value={form.modal_gpu} options={modalGpuOptions} onChange={updateModalGpu} disabled={busy || connectionBusy}/><p className="field-help">The suggested GPU is a starting point based on image count and settings. Increase memory if your scene needs it.</p>
+            <p className="field-help">One GPU per run. Your Modal account is billed for compute used. Stop the experiment here to cancel it.</p>
+            {modalDeployment && <ModalDeploymentProgress deployment={modalDeployment} onCancel={stopModalDeployment} onExpand={() => setModalLogExpanded(true)}/>}
+            {modalDeployment && modalLogExpanded && <ModalDeploymentDialog deployment={modalDeployment} onCancel={stopModalDeployment} onClose={() => setModalLogExpanded(false)}/>}
+            {remoteMessage && <p className="field-help" role="status">{remoteMessage}</p>}
           </div>
-          {form.ssh_authentication === "key" && <TextField label="Private key path" value={form.ssh_private_key} onChange={(value) => set("ssh_private_key", value)} placeholder="/Users/you/.ssh/id_ed25519" />}
-          <TextField label="Remote workspace" value={form.ssh_workspace} onChange={(value) => set("ssh_workspace", value)} placeholder="~/gtsfm-workspace" />
-          <p className="field-help">SSH setup is visible now; remote execution and file transfer are the next connector step.</p>
-        </div>}
       </div>}
-    </Section>
+    <TextField label="Run time limit (minutes)" type="number" min="1" max="1440" value={form.max_run_minutes} onChange={(value) => set("max_run_minutes", value)}/>
+    <p className="field-help">After setup, requests cancellation when this limit is reached. Modal bills for actual usage.</p>
+    <details className="disclosure saved-execution"><summary>Saved compute settings</summary>
+      <SelectField label="Saved execution configuration" value={selectedExecution} options={executionConfigurations.map((item) => ({ id: item.name, label: item.name }))} empty="Current settings (unsaved)" onChange={loadExecution} disabled={executionBusy || connectionBusy} />
+      {executionMessage.startsWith("Unable") && <p className="job-error" role="alert">{executionMessage}</p>}
+      <details className="disclosure saved-settings"><summary>Save or manage this configuration</summary><TextField label="Configuration name" value={executionName} onChange={setExecutionName} placeholder="Mac, Cyber, or Cluster" />
+      <div className="job-actions">
+        <button type="button" className="secondary-action" disabled={executionBusy || !executionName.trim()} onClick={saveExecution}>Save configuration</button>
+        <button type="button" className="text-button" disabled={executionBusy || connectionBusy || !selectedExecution} onClick={() => loadExecution(selectedExecution)}>Reload saved</button>
+        <button type="button" className="text-button danger" disabled={executionBusy || !selectedExecution} onClick={deleteExecution}>Delete saved</button>
+      </div>
+      <p className="field-help" role="status">{executionMessage.startsWith("Unable") ? "" : executionMessage || "Saved on this Studio host. Edits below are used for this run."}</p></details>
+    </details>
     <Collapsible.Root className="advanced-options" open={advanced} onOpenChange={setAdvanced}>
       <Collapsible.Trigger className="advanced-trigger"><span><Cpu size={13} /><span className="advanced-trigger-copy">Machine settings<small>{machineProfile.label}</small></span></span><ChevronDown size={14} /></Collapsible.Trigger>
       <Collapsible.Content className="advanced-content">
         <div className="machine-profile-summary">
           <div><span>MACHINE PROFILE</span><strong>{machineProfile.label}</strong></div>
           <p>{machineProfile.description}</p>
-          <div className="machine-profile-specs"><span>{machineProfile.workers} worker{machineProfile.workers === 1 ? "" : "s"}</span><span>{form.threads_per_worker} thread{Number(form.threads_per_worker) === 1 ? "" : "s"} / worker</span><span>{machineProfile.memoryPerWorkerGiB} GB / worker</span></div>
+          <div className="machine-profile-specs"><span>{form.num_workers} worker{Number(form.num_workers) === 1 ? "" : "s"}</span><span>{form.threads_per_worker} thread{Number(form.threads_per_worker) === 1 ? "" : "s"} / worker</span><span>{form.worker_memory_limit} / worker</span></div>
         </div>
         <div className="form-grid">
           <TextField label="Workers" type="number" min="1" value={form.num_workers} onChange={(value) => set("num_workers", value)} disabled={!machineProfile.allowWorkers} title={!machineProfile.allowWorkers ? "Fixed for the selected single-GPU machine" : undefined} />
@@ -1746,13 +1683,27 @@ function RunForm({ schema, hardware, samples, samplesLoading, onStarted, onTabCh
           <TextField label="Dashboard port" value={form.dashboard_port} onChange={(value) => set("dashboard_port", value)} placeholder=":8787" disabled={!machineProfile.allowLocalRuntime} />
           <TextField label="Input worker" value={form.input_worker} onChange={(value) => set("input_worker", value)} placeholder="Optional worker address" disabled={!machineProfile.allowLocalRuntime} />
           <TextField label="Dask temp folder" value={form.dask_tmpdir} onChange={(value) => set("dask_tmpdir", value)} placeholder="System default" disabled={!machineProfile.allowLocalRuntime} />
-          <TextField label="Cluster config" value={form.cluster_config} onChange={(value) => set("cluster_config", value)} placeholder="Optional YAML path" disabled={!machineProfile.allowLocalRuntime} />
+          <TextField label="Cluster config (YAML)" value={form.cluster_config} onChange={(value) => set("cluster_config", value)} placeholder="Optional YAML path" disabled={!machineProfile.allowLocalRuntime} aria-describedby={machineProfile.allowLocalRuntime ? "cluster-config-help" : undefined} />
           <TextField label="Cluster retries" type="number" min="0" value={form.num_retry_cluster_connection} onChange={(value) => set("num_retry_cluster_connection", value)} placeholder="3" disabled={!machineProfile.allowLocalRuntime} />
         </div>
+        {machineProfile.allowLocalRuntime && <p id="cluster-config-help" className="field-help">Path on this Studio host to a Dask constructor YAML or existing cluster file. A LocalCluster constructor file controls cluster options instead of the worker, thread, and memory defaults above.</p>}
+        {machineProfile.allowLocalRuntime && <>
+          <TextField label="SSH worker hosts" value={form.dask_worker_hosts} onChange={(value) => set("dask_worker_hosts", value)} placeholder="Optional: worker1 worker2" />
+          <TextField label="Scheduler host" value={form.dask_scheduler_host} onChange={(value) => set("dask_scheduler_host", value)} placeholder="First worker host" />
+          <TextField label="Scheduler port" type="number" min="0" max="65535" value={form.dask_scheduler_port} onChange={(value) => set("dask_scheduler_port", value)} placeholder="0 = automatic" />
+          <TextField label="Worker Python" value={form.dask_worker_python} onChange={(value) => set("dask_worker_python", value)} placeholder="Same Python path as the runner" />
+          <p className="field-help">Leave worker hosts empty to compute on the selected machine. With hosts set, native Dask SSHCluster starts the scheduler and workers from that machine using its SSH configuration. Nodes need the same GTSFM environment and shared input paths. Workers and memory above apply per host.</p>
+        </>}
       </Collapsible.Content>
     </Collapsible.Root>
-    <div className="form-error" role="alert">{error}</div>
-    <button className="primary-action" type="submit" disabled={busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking || (inputMode === "previous" && (!previousFolder || uploadsLoading)) || (inputMode === "sample" && !preparedSample) || (form.execution_target === "remote" && (!form.remote_endpoint || !form.modal_api_key || !remote?.verified))}><span>{busy ? "Starting…" : sampleBusy ? "Preparing sample…" : modalActionLabel}</span>{busy || sampleBusy || modalDeploying || modalDiscovering || remoteChecking ? <RefreshCw className="spin" size={14} /> : <Play size={14} fill="currentColor" />}</button>
+    </Section>
+    </aside></fieldset>
+    <footer className="run-footer">
+      <div className="run-footer-copy"><strong>{sourceReady ? `${imageCount ? `${imageCount} images · ` : ""}${model?.label || displayName(form.config_name)}` : "Add images to begin"}</strong><span>{sourceReady ? `${computeName} · ${form.splat_implementation === "none" ? "Cameras and point cloud" : "Reconstruction and Gaussian splats"}` : "Choose a folder, a sample, or a previous upload above."}</span></div>
+      {modalDeploying && modalDeployment && <div className="preparing-actions"><button type="button" className="text-button" onClick={() => setModalLogExpanded(true)}>View setup logs</button><button type="button" className="text-button danger" disabled={modalDeployment.phase === "verifying"} onClick={stopModalDeployment}>Stop setup</button></div>}
+      <button className="primary-action" type="submit" disabled={!sourceReady || busy || connectionBusy || Boolean(deviceError) || (form.execution_target === "remote" && account?.status !== "connected")}>{busy ? <RefreshCw className="spin" size={20}/> : <Play size={20}/>}<span>{busy ? (modalDeploying ? "Preparing Modal…" : "Starting experiment…") : "Run experiment"}</span></button>
+      {(error || deviceError) && <div className="form-error" role="alert">{error || deviceError}</div>}
+    </footer>
   </form>;
 }
 
@@ -1772,6 +1723,7 @@ interface ActivityPanelProps {
   jobs: Job[];
   activeId: string | null;
   onSelect: (id: string) => void;
+  onBrowse: () => void;
   onCancel: (id: string) => void;
   onRefresh: () => void;
 }
@@ -1829,24 +1781,23 @@ function RetryJob({ jobId, onStarted, compact = false }: { jobId: string; onStar
   </span>;
 }
 
-function ActivityPanel({ jobs, activeId, onSelect, onCancel, onRefresh, onRetried }: ActivityPanelProps) {
-  return <div><div className="panel-title"><div><h3>Activity</h3><p>Running and recent jobs</p></div><button className="icon-button" title="Refresh" onClick={onRefresh}><RefreshCw size={14} /></button></div>
-    <div className="job-list">{jobs.length ? jobs.map((job) => <article key={job.id} className={`job-card ${job.id === activeId ? "selected" : ""}`}>
+function ActivityPanel({ jobs, activeId, onSelect, onBrowse, onCancel, onRefresh, onRetried }: ActivityPanelProps) {
+  return <div><div className="panel-title"><div><h1>Experiments</h1><p>Settings, progress, and results together.</p></div><button className="icon-button" title="Refresh" onClick={onRefresh}><RefreshCw size={14} /></button></div>
+    <button type="button" className="text-button existing-results" onClick={onBrowse}>Open existing reconstruction</button><div className="job-list">{jobs.length ? jobs.map((job) => <article key={job.id} className={`job-card ${job.id === activeId ? "selected" : ""}`}>
       <div className="job-card-top"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span></div>
       <small>{displayName(job.spec.config_name || "GTSFM")} · {displayName(job.spec.splat_implementation || "no_splats")}</small>
       {job.error && <p className="job-error">{job.error}</p>}
-      {job.history_note && <p className="job-history-note">{job.history_note}</p>}
       {job.created_at && <time className="job-created" dateTime={job.created_at}>{new Date(job.created_at).toLocaleString()}</time>}
       {job.status === "failed" && <CopyDiagnosticPrompt key={job.id} jobId={job.id} />}
       <div className="job-actions">{canRetryJob(job) && <RetryJob jobId={job.id} onStarted={onRetried}/>}<button className="text-button" onClick={() => onSelect(job.id)}>{job.has_final_splat ? "View splat" : ["queued", "running"].includes(job.status) ? "View progress" : "View details"}</button>
         {["queued", "running"].includes(job.status) && <button className="text-button danger" onClick={() => onCancel(job.id)}><Square size={9} fill="currentColor"/> Stop</button>}
-        {job.status === "completed" && !job.remote && job.output_root && <a className="text-button" href={`/?view=results&run=${encodeURIComponent(job.output_root)}`}>View results</a>}
+        {job.status === "completed" && job.output_root && <><a className="text-button" href={`/api/jobs/${encodeURIComponent(job.id)}/results`} download>Download results</a></>}
         {job.remote?.workspace_url && <a className="text-button" href={job.remote.workspace_url} target="_blank" rel="noreferrer">Remote results ↗</a>}
-      </div>{job.has_final_splat && <SplatDownload jobId={job.id} compact />}</article>) : <div className="empty-state"><Activity size={20} /><strong>No runs yet</strong><span>Configure your first reconstruction in New run.</span></div>}</div>
+      </div>{job.has_final_splat && <SplatDownload jobId={job.id} compact />}</article>) : <div className="empty-state"><Activity size={20} /><strong>No runs yet</strong><span>Start with New experiment.</span></div>}</div>
   </div>;
 }
 
-function ResultsPanel({ onStarted, refreshKey }: { onStarted: (job: Job) => void; refreshKey: string }) {
+function ResultsPanel({ onStarted, refreshKey, onSceneOpened }: { onStarted: (job: Job) => void; refreshKey: string; onSceneOpened: () => void }) {
   const [scene, setScene] = useState<ResultItem | null>(null);
   const [steps, setSteps] = useState("7000");
   const [starting, setStarting] = useState(false);
@@ -1865,7 +1816,7 @@ function ResultsPanel({ onStarted, refreshKey }: { onStarted: (job: Job) => void
     finally { setStarting(false); }
   };
   const runRoot = new URLSearchParams(location.search).get("run");
-  return <div><div className="panel-title"><div><h3>Reconstructions</h3><p>Open a scene in the 3D viewer</p></div></div>
+  return <div><div className="panel-title"><div><span className="eyebrow">SCENE LIBRARY</span><h2>Reconstructions</h2><p>Select a scene to explore.</p></div></div>
     {runRoot && <a className="text-button" href="/?view=results">View all results</a>}
     {scene && <form className="splat-result-form" onSubmit={start}>
       <strong>Splatify this reconstruction</strong>
@@ -1875,7 +1826,7 @@ function ResultsPanel({ onStarted, refreshKey }: { onStarted: (job: Job) => void
       {error && <p className="job-error" role="alert">{error}</p>}
       <div className="job-actions"><button className="primary-action" type="submit" disabled={starting || !Number.isInteger(Number(steps)) || Number(steps) < 1}>{starting ? "Starting…" : "Start splatting"}</button><button className="text-button" type="button" disabled={starting} onClick={() => setScene(null)}>Cancel</button></div>
     </form>}
-    <ResultsBrowser refreshKey={refreshKey} onSplatify={(item) => { setScene(item); setError(""); }}/>
+    <ResultsBrowser refreshKey={refreshKey} onOpened={onSceneOpened} onSplatify={(item) => { setScene(item); setError(""); }}/>
 
   </div>;
 }
@@ -1994,30 +1945,15 @@ interface ViewerProps {
   statusBarOpen: boolean;
   setStatusBarOpen: Dispatch<SetStateAction<boolean>>;
   onCancelJob: (id: string) => void;
-  setup: SetupStatus | null;
-  setupRefreshing: boolean;
-  onRefreshSetup: () => void;
-  onSetupChange: (setup: SetupStatus) => void;
 }
-
-interface LogPanelGeometry {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-type LogResizeCorner = "nw" | "ne" | "sw" | "se";
 
 // Preserve argument boundaries when copying a subprocess argv into a POSIX shell.
 function shellCommand(args: string[]): string {
   return args.map((arg) => /^[A-Za-z0-9_@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, "'\\''")}'`).join(" ");
 }
 
-function LogPanel({ open, job, onClose, onRetried }: { open: boolean; job: Job | null; onClose: () => void; onRetried: (job: Job) => void }) {
-  const panelRef = useRef<HTMLDivElement>(null);
+function LogPanel({ open, job, onClose, onRetried, live }: { open: boolean; job: Job | null; onClose: () => void; onRetried: (job: Job) => void; live?: LiveState | null }) {
   const copyReset = useRef<number | null>(null);
-  const [geometry, setGeometry] = useState<LogPanelGeometry | null>(null);
   const [copied, setCopied] = useState<"logs" | "command" | null>(null);
   const lines = job?.log_tail || [];
   const remoteRequest = job?.command?.[0] === "remote";
@@ -2033,103 +1969,9 @@ function LogPanel({ open, job, onClose, onRetried }: { open: boolean; job: Job |
   useEffect(() => () => { if (copyReset.current !== null) window.clearTimeout(copyReset.current); }, []);
   useEffect(() => { setCopied(null); }, [job?.id]);
 
-  const beginDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest("button")) return;
-    const panel = panelRef.current;
-    const container = panel?.parentElement;
-    if (!panel || !container) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const panelRect = panel.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    const start = {
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      left: panelRect.left - containerRect.left,
-      top: panelRect.top - containerRect.top,
-      width: panelRect.width,
-      height: panelRect.height,
-      maxLeft: containerRect.width - panelRect.width,
-      maxTop: containerRect.height - panelRect.height,
-    };
-    setGeometry({ left: start.left, top: start.top, width: start.width, height: start.height });
-
-    const move = (moveEvent: PointerEvent) => setGeometry({
-      left: Math.max(0, Math.min(start.maxLeft, start.left + moveEvent.clientX - start.pointerX)),
-      top: Math.max(0, Math.min(start.maxTop, start.top + moveEvent.clientY - start.pointerY)),
-      width: start.width,
-      height: start.height,
-    });
-    const finish = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", finish, { once: true });
-    window.addEventListener("pointercancel", finish, { once: true });
-  };
-
-  const beginResize = (corner: LogResizeCorner) => (event: React.PointerEvent<HTMLButtonElement>) => {
-    const panel = panelRef.current;
-    const container = panel?.parentElement;
-    if (!panel || !container) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const panelRect = panel.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    const start = {
-      pointerX: event.clientX,
-      pointerY: event.clientY,
-      left: panelRect.left - containerRect.left,
-      top: panelRect.top - containerRect.top,
-      right: panelRect.right - containerRect.left,
-      bottom: panelRect.bottom - containerRect.top,
-      containerWidth: containerRect.width,
-      containerHeight: containerRect.height,
-    };
-    setGeometry({ left: start.left, top: start.top, width: panelRect.width, height: panelRect.height });
-
-    const move = (moveEvent: PointerEvent) => {
-      const dx = moveEvent.clientX - start.pointerX;
-      const dy = moveEvent.clientY - start.pointerY;
-      const left = corner.includes("w")
-        ? Math.max(0, Math.min(start.right - 300, start.left + dx))
-        : start.left;
-      const right = corner.includes("e")
-        ? Math.min(start.containerWidth, Math.max(start.left + 300, start.right + dx))
-        : start.right;
-      const top = corner.includes("n")
-        ? Math.max(0, Math.min(start.bottom - 300, start.top + dy))
-        : start.top;
-      const bottom = corner.includes("s")
-        ? Math.min(start.containerHeight, Math.max(start.top + 300, start.bottom + dy))
-        : start.bottom;
-      setGeometry({ left, top, width: right - left, height: bottom - top });
-    };
-    const finish = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", finish);
-      window.removeEventListener("pointercancel", finish);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", finish, { once: true });
-    window.addEventListener("pointercancel", finish, { once: true });
-  };
-
   if (!open) return null;
-  const style = geometry ? ({
-    left: geometry.left,
-    top: geometry.top,
-    width: geometry.width,
-    height: geometry.height,
-    right: "auto",
-    bottom: "auto",
-  } as React.CSSProperties) : undefined;
-  return <div ref={panelRef} className="log-drawer" role="dialog" aria-label="Run details" style={style}>
-    {(["nw", "ne", "sw", "se"] as LogResizeCorner[]).map((corner) => <button key={corner} className={`log-resize-handle ${corner}`} type="button" title="Resize logs" aria-label={`Resize logs from ${corner}`} onPointerDown={beginResize(corner)} />)}
-    <div className="log-header" onPointerDown={beginDrag}><strong><Terminal size={12}/> Run details</strong><div className="log-header-actions"><button type="button" title="Minimize run details" aria-label="Minimize run details" onClick={onClose}><Minus size={15}/></button><button type="button" title="Close run details" aria-label="Close run details" onClick={onClose}><X size={14}/></button></div></div>
+  return <section className="log-drawer" aria-label="Run details">
+    <div className="log-header"><strong><Terminal size={14}/> Run details</strong><div className="log-header-actions"><button type="button" title="Close run details" aria-label="Close run details" onClick={onClose}><X size={16}/></button></div></div>
     {job && <div className="run-details-summary"><strong>{job.name}</strong><span className={`job-status ${job.status}`}>{statusLabel(job.status)}</span>{job.return_code != null && <span>Exit code {job.return_code}</span>}{job.output_root && <div className="run-output-path"><span>Output</span><code>{job.output_root}</code></div>}{job.error && <p className="job-error">{job.error}</p>}</div>}
     {job?.history_note && <p className="job-history-note run-history-note">{job.history_note}</p>}
     {job && ["failed", "interrupted"].includes(job.status) && <div className="run-diagnostic-prompt">{canRetryJob(job) && <RetryJob key={`retry-${job.id}`} jobId={job.id} onStarted={onRetried}/>}<CopyDiagnosticPrompt key={job.id} jobId={job.id} /></div>}
@@ -2137,23 +1979,21 @@ function LogPanel({ open, job, onClose, onRetried }: { open: boolean; job: Job |
       <div className="run-detail-heading"><strong>{remoteRequest ? "Remote request" : "CLI command"}</strong><button type="button" disabled={!command} onClick={() => copy("command")} aria-label={remoteRequest ? "Copy remote request" : "Copy command"}>{copied === "command" ? <Check size={12}/> : <Copy size={12}/>} {copied === "command" ? "Copied!" : "Copy"}</button></div>
       <pre>{command || "No command recorded for this run."}</pre>
     </section>
+    {live?.message && <p className="inspector-stage" role="status">{live.message}</p>}
     <div className="run-detail-heading log-section-heading"><strong>Logs</strong><button type="button" onClick={() => copy("logs")} aria-label="Copy logs">{copied === "logs" ? <Check size={12}/> : <Copy size={12}/>} {copied === "logs" ? "Copied!" : "Copy"}</button></div>
     <pre id="runLogs">{lines.join("\n") || "No log output yet."}</pre>
-  </div>;
+  </section>;
 }
 
-function SetupPanel({ setup, refreshing, onRefresh, onSetupChange, hasActiveJob }: {
+function SetupPanel({ setup, refreshing, onRefresh, onSetupChange, onClose }: {
   setup: SetupStatus | null;
   refreshing: boolean;
   onRefresh: () => void;
   onSetupChange: (setup: SetupStatus) => void;
-  hasActiveJob: boolean;
+  onClose: () => void;
 }) {
-  const [collapsed, setCollapsed] = useState(true);
-  const [closed, setClosed] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
-  const positionClass = hasActiveJob ? "with-active-job" : "";
 
   const runSetupAction = async (item: SetupCheck) => {
     if (!item.action?.enabled || installingId) return;
@@ -2169,21 +2009,19 @@ function SetupPanel({ setup, refreshing, onRefresh, onSetupChange, hasActiveJob 
     }
   };
 
-  if (closed) return <button className={`setup-reopen ${positionClass}`} type="button" title="Show setup checks" aria-label="Show setup checks" onClick={() => setClosed(false)}><Wrench size={15} /></button>;
-
   const status = setup?.status ?? "warning";
   const optionalUnavailable = setup?.counts.optional ?? 0;
-  return <section className={`setup-panel ${collapsed ? "collapsed" : ""} ${positionClass}`} aria-label="Setup checks" aria-live="polite">
+  return <section className="setup-panel" aria-label="Setup checks" aria-live="polite">
     <header className="setup-panel-header">
       <span className={`setup-overall-icon ${status}`} aria-hidden="true">{status === "ready" ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}</span>
       <div className="setup-panel-copy"><span>SETUP CHECKS</span><strong>{setup?.summary ?? "Checking environment…"}</strong></div>
       <div className="setup-panel-actions">
         <button type="button" title="Refresh checks" aria-label="Refresh setup checks" onClick={onRefresh} disabled={refreshing}><RefreshCw className={refreshing ? "spin" : ""} size={13} /></button>
-        <button type="button" title={collapsed ? "Expand checks" : "Collapse checks"} aria-label={collapsed ? "Expand setup checks" : "Collapse setup checks"} onClick={() => setCollapsed((current) => !current)}>{collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}</button>
-        <button type="button" title="Close checks" aria-label="Close setup checks" onClick={() => setClosed(true)}><X size={14} /></button>
+
+        <button type="button" title="Close checks" aria-label="Close setup checks" onClick={onClose}><X size={14} /></button>
       </div>
     </header>
-    {!collapsed && <div className="setup-panel-body">
+    <div className="setup-panel-body">
       {!setup ? <div className="setup-loading"><RefreshCw className="spin" size={13} /> Inspecting this machine…</div> : <>
         <div className="setup-summary-line"><span>{setup.counts.ready} passed</span>{optionalUnavailable > 0 && <span>{optionalUnavailable} optional unavailable</span>}</div>
         <ul>{setup.items.map((item) => <li key={item.id} data-state={item.state}>
@@ -2191,7 +2029,7 @@ function SetupPanel({ setup, refreshing, onRefresh, onSetupChange, hasActiveJob 
           <div className="setup-check-content"><div className="setup-check-title"><strong>{item.label}</strong><span className="setup-check-tools">{!item.required && <em>optional</em>}{item.action && <button className="setup-install" type="button" disabled={!item.action.enabled || Boolean(installingId)} title={item.action.reason || item.action.label} onClick={() => runSetupAction(item)}>{installingId === item.id ? <RefreshCw className="spin" size={9}/> : item.action.enabled ? <Download size={9}/> : null}<span>{installingId === item.id ? "Working…" : item.action.label}</span></button>}</span></div><small className={actionErrors[item.id] ? "setup-action-error" : undefined}>{actionErrors[item.id] || item.detail}</small></div>
         </li>)}</ul>
       </>}
-    </div>}
+    </div>
   </section>;
 }
 
@@ -2227,26 +2065,24 @@ function pipelineStatusMessage(job: Job, live: LiveState | null): string {
   return latestStatus?.replace(/^.*?\b(?:DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*/, "") || "GTSFM: Preparing the reconstruction pipeline…";
 }
 
-function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStatusBarOpen, onCancelJob, onRetried, setup, setupRefreshing, onRefreshSetup, onSetupChange }: ViewerProps) {
+function Viewer({ activeJob, live, logsOpen, setLogsOpen, statusBarOpen, setStatusBarOpen, onCancelJob, onRetried }: ViewerProps) {
   const closeStatus = () => { setStatusBarOpen(false); setLogsOpen(false); };
   const showDaskStats = Boolean(activeJob && ["queued", "running"].includes(activeJob.status));
   const expectsSplats = Boolean(activeJob && (activeJob.spec.splat_implementation || "none") !== "none");
   const visualizationAvailable = Boolean(live?.preview_url || live?.final_url || activeJob?.has_final_splat);
-  const showPipelineWait = Boolean(activeJob && expectsSplats && ["queued", "running"].includes(activeJob.status) && !visualizationAvailable);
-  return <><main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} onRetried={onRetried} />
+  const showPipelineWait = Boolean(activeJob && ["queued", "running"].includes(activeJob.status) && !visualizationAvailable);
+  return <div className="experiment-visualization"><main id="main-content"><StatusBar job={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} visible={statusBarOpen} onCancel={onCancelJob} onClose={closeStatus} onRetried={onRetried} />
     <div className="viewer-top-panels">
     <SceneStats>{showDaskStats && activeJob && <DaskStats job={activeJob} live={live}/>}</SceneStats>
     <ViewControls/>
-    <SetupPanel setup={setup} refreshing={setupRefreshing} onRefresh={onRefreshSetup} onSetupChange={onSetupChange} hasActiveJob={Boolean(activeJob && statusBarOpen)} />
     </div>
     <ViewerCanvas/>
     <div id="viewer-startup-anchor"/>
     <ViewerToolbar/>
-    <a className="viewport-github" href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" title="Open GTSFM on GitHub" aria-label="Open GTSFM GitHub repository"><Github size={16}/></a>
-    <LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} onRetried={onRetried} />
-    {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>The first live Gaussian preview will appear here automatically.</small></div></div>}
+    {showPipelineWait && activeJob && <div className="pipeline-wait-overlay" role="status" aria-live="polite"><div className="pipeline-wait-content"><span>RECONSTRUCTION IN PROGRESS</span><strong>{pipelineStatusMessage(activeJob, live)}</strong><div className="pipeline-wait-dots" aria-hidden="true"><i/><i/><i/></div><small>{expectsSplats ? "The first live Gaussian preview will appear here automatically." : "The reconstruction and source photographs will appear here automatically."}</small></div></div>}
+    {!showPipelineWait && <ViewerEmpty/>}
     <ViewerLoading/>
-  </main><PhotoPanel/></>;
+  </main><PhotoPanel/></div>;
 }
 
 function hardwareWarningContent(hardware: HardwareCatalog): { title: string; description: string } {
@@ -2311,31 +2147,49 @@ function HardwareWarning({ hardware, onUseRemote }: { hardware: HardwareCatalog;
   </section>;
 }
 
-const SIDEBAR_WIDTH_KEY = "gtsfm-studio-sidebar-width";
-const SIDEBAR_MIN_WIDTH = 320;
-const SIDEBAR_MAX_WIDTH = 760;
+const SIDEBAR_WIDTH_KEY = "gtsfm-studio-library-width";
+const SIDEBAR_MIN_WIDTH = 280;
+const SIDEBAR_MAX_WIDTH = 520;
 
 function constrainSidebarWidth(width: number): number {
-  const viewerRoom = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - 360);
+  const viewerRoom = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - 600);
   return Math.round(Math.min(SIDEBAR_MAX_WIDTH, viewerRoom, Math.max(SIDEBAR_MIN_WIDTH, width)));
 }
 
 function storedSidebarWidth(): number {
   try {
     const saved = Number(window.localStorage.getItem(SIDEBAR_WIDTH_KEY));
-    return constrainSidebarWidth(Number.isFinite(saved) && saved > 0 ? saved : 420);
+    return constrainSidebarWidth(Number.isFinite(saved) && saved > 0 ? saved : 320);
   } catch {
-    return 420;
+    return 320;
   }
 }
 
 function App() {
   const { viewer } = useViewerApi();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [environmentOpen, setEnvironmentOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(() => window.matchMedia("(max-width: 580px)").matches);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 580px)");
+    const update = () => setCompactNavigation(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    if (!environmentOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Element && !event.target.closest('.environment-popover, .environment-button')) setEnvironmentOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { setEnvironmentOpen(false); document.querySelector<HTMLButtonElement>('.environment-button')?.focus(); } };
+    window.addEventListener("pointerdown", dismiss);
+    window.addEventListener("keydown", escape);
+    return () => { window.removeEventListener("pointerdown", dismiss); window.removeEventListener("keydown", escape); };
+  }, [environmentOpen]);
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth);
   const [sidebarResizing, setSidebarResizing] = useState(false);
   const sidebarResizeStart = useRef<{ pointerX: number; width: number; pointerId: number; target: HTMLDivElement } | null>(null);
-  const [tab, setTab] = useState(new URLSearchParams(location.search).get("view") === "results" ? "results" : "run");
+  const [tab, setTab] = useState(new URLSearchParams(location.search).has("experiment") ? "activity" : ["activity", "results"].includes(new URLSearchParams(location.search).get("view") || "") ? new URLSearchParams(location.search).get("view")! : "run");
   const [schema, setSchema] = useState<ConfigurationSchema>(BOOTSTRAP_SCHEMA);
   const [schemaLoading, setSchemaLoading] = useState(true);
   const [schemaError, setSchemaError] = useState("");
@@ -2345,14 +2199,15 @@ function App() {
   const [samples, setSamples] = useState<SampleDataset[]>([]);
   const [samplesLoading, setSamplesLoading] = useState(true);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [live, setLive] = useState<LiveState | null>(null);
+  const [reuse, setReuse] = useState<{settings: Record<string, unknown>; version: number}>();
+  const [mobileDetail, setMobileDetail] = useState(new URLSearchParams(location.search).has("experiment"));
+  const [preparing, setPreparing] = useState(false);
+  const [importError, setImportError] = useState("");
+  const importFile = useRef<HTMLInputElement>(null);
+  const [activeId, setActiveId] = useState<string | null>(new URLSearchParams(location.search).get("experiment"));
+  const [liveEvent, setLiveEvent] = useState<JobEvent | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const [statusBarOpen, setStatusBarOpen] = useState(true);
-  const [remotePromptKey, setRemotePromptKey] = useState(0);
-  const [viewerLoadRequest, setViewerLoadRequest] = useState(0);
-  const previewVersion = useRef<string | number | null>(null);
-  const finalLoaded = useRef<string | null>(null);
 
   const finishSidebarResize = useCallback(() => {
     const start = sidebarResizeStart.current;
@@ -2413,9 +2268,20 @@ function App() {
     return () => window.removeEventListener("resize", keepSidebarOnScreen);
   }, []);
 
-  const refreshJobs = useCallback(async () => {
-    try { const payload = await getJson<JobsResponse>("/api/jobs"); setJobs(payload.items || []); setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null); } catch (reason) { console.warn("Unable to refresh jobs", reason); }
+  const applyJobsSnapshot = useCallback(({ items = [] }: JobsResponse) => {
+    setJobs(items);
+    setActiveId((current) => items.some((job) => job.id === current)
+      ? current
+      : items.find((job) => job.status === "running" || job.status === "queued")?.id ?? items[0]?.id ?? null);
   }, []);
+
+  const refreshJobs = useCallback(async () => {
+    try {
+      applyJobsSnapshot(await getJson<JobsResponse>("/api/jobs"));
+    } catch (reason) {
+      console.warn("Unable to refresh jobs", reason);
+    }
+  }, [applyJobsSnapshot]);
 
   const refreshSetup = useCallback(async () => {
     setSetupRefreshing(true);
@@ -2458,79 +2324,91 @@ function App() {
 
   useEffect(() => { if (activeId) setStatusBarOpen(true); }, [activeId]);
 
-  const jobsConnection = useJobStream<JobsResponse>("/api/events/jobs", (payload) => {
-    setJobs(payload.items || []);
-    setActiveId((current) => current || payload.items?.find((job) => ["queued", "running"].includes(job.status))?.id || null);
-  });
-  useEffect(() => { setLive(null); }, [activeJob?.id]);
+  const jobsConnection = useJobStream<JobsResponse>("/api/events/jobs", applyJobsSnapshot);
   const liveConnection = useJobStream<JobEvent>(activeJob ? `/api/events/jobs/${encodeURIComponent(activeJob.id)}` : null, (payload) => {
     setJobs((current) => current.map((job) => job.id === payload.job.id ? payload.job : job));
-    setLive(payload.live);
+    setLiveEvent(payload);
   });
+  const live = liveEvent && liveEvent.job.id === activeJob?.id ? liveEvent.live : null;
   const connectionMessage = [jobsConnection, liveConnection].includes("unavailable")
     ? "Live updates unavailable. Reload Studio to reconnect."
     : [jobsConnection, liveConnection].includes("reconnecting") ? "Connection interrupted. Reconnecting to live updates…" : "";
 
+  const previewJobId = tab === "activity" && activeJob && (activeJob.status === "queued" || activeJob.status === "running")
+    ? activeJob.id
+    : null;
+  const previewUrl = live?.preview_url;
+  const previewLabel = activeJob ? `${activeJob.name} · live` : "";
   useEffect(() => {
-    if (!activeJob || !live) return;
-    const finalKey = activeJob.status === "completed" && live.final_url ? `${activeJob.id}:${live.final_url}` : null;
-    const previewKey = live.preview_url ? `${activeJob.id}:${String(live.preview_version ?? live.preview_url)}` : null;
-    const desired = finalKey
-      ? { kind: "final" as const, key: finalKey, url: live.final_url as string, label: `${activeJob.name} · final` }
-      : previewKey
-        ? { kind: "preview" as const, key: previewKey, url: live.preview_url as string, label: `${activeJob.name} · live` }
-        : null;
-    if (!desired) return;
-    if (desired.kind === "final" && finalLoaded.current === desired.key) return;
-    if (desired.kind === "preview" && previewVersion.current === desired.key) return;
+    if (!viewer || !previewJobId || !previewUrl) return;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let retry: number | undefined;
+    let failures = 0;
 
-    let cancelled = false;
-    let retry: number | null = null;
-    let loadFailures = 0;
-    const tryLoad = async () => {
-      if (cancelled) return;
-      if (!viewer || viewer.isBusy()) {
-        retry = window.setTimeout(() => { void tryLoad(); }, 250);
-        return;
+    const showPreview = async () => {
+      await waitForViewerIdle(viewer, signal);
+      if (signal.aborted) return;
+      try {
+        const loaded = await viewer.loadSplatsFile({ splatsUrl: previewUrl, label: previewLabel, streamId: previewJobId });
+        if (loaded !== false) return;
+      } catch (reason) {
+        if (!signal.aborted) console.warn("Unable to load live preview", reason);
       }
-      const loaded = await viewer.loadSplatsFile({ splatsUrl: desired.url, label: desired.label, streamId: activeJob.id });
-      if (cancelled) return;
-      if (loaded === false) {
-        loadFailures += 1;
-        if (loadFailures < 3) retry = window.setTimeout(() => { void tryLoad(); }, 1200);
-        return;
+      if (!signal.aborted && ++failures < 3) {
+        retry = window.setTimeout(() => { void showPreview(); }, 1200);
       }
-      if (desired.kind === "final") finalLoaded.current = desired.key;
-      else previewVersion.current = desired.key;
     };
-    void tryLoad();
+    void showPreview();
     return () => {
-      cancelled = true;
-      if (retry !== null) window.clearTimeout(retry);
+      controller.abort();
+      window.clearTimeout(retry);
     };
-  }, [activeJob?.id, activeJob?.status, live?.final_url, live?.preview_url, live?.preview_version, viewerLoadRequest, viewer]);
+  }, [viewer, previewJobId, previewUrl, previewLabel, live?.preview_version]);
 
-  const onRetried = (job: Job) => {
+  const changeTab = (value: string) => {
+    setTab(value);
+    setSidebarCollapsed(false);
+    setMobileDetail(false);
+    setLogsOpen(false);
+    if (value === "activity") {
+      history.replaceState(null, "", activeId ? `/?experiment=${encodeURIComponent(activeId)}` : "/?view=activity");
+    } else {
+      history.replaceState(null, "", value === "results" ? "/?view=results" : "/");
+    }
+  };
+
+  const selectExperiment = (id: string, showLogs = false) => {
+    setActiveId(id);
+    setTab("activity");
+    setMobileDetail(true);
+    setStatusBarOpen(true);
+    setLogsOpen(showLogs);
+    history.replaceState(null, "", `/?experiment=${encodeURIComponent(id)}`);
+  };
+
+  const showStartedJob = (job: Job, showLogs = false) => {
     setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
-    setActiveId(job.id);
-    setStatusBarOpen(true); setLogsOpen(true); setTab("activity");
+    selectExperiment(job.id, showLogs);
     void refreshJobs();
   };
+  const onRetried = (job: Job) => showStartedJob(job, true);
 
   const cancelJob = async (id: string) => { await fetch(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }); await refreshJobs(); };
   const activeCount = jobs.filter((job) => ["queued", "running"].includes(job.status)).length;
-  const hasNvidiaSplatSupport = hardware?.devices.some((device) => device.supports_gaussian_splatting && (!device.status || device.status === "available")) ?? false;
-  const showHardwareWarning = Boolean(hardware && !hasNvidiaSplatSupport);
-  const useRemoteVm = () => { setTab("run"); setRemotePromptKey((current) => current + 1); };
-  return <div className="app-shell"><aside id="sidebar" className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)} />
-    {showHardwareWarning && hardware && <HardwareWarning key={hardwareWarningContent(hardware).title} hardware={hardware} onUseRemote={useRemoteVm}/>}
-    {connectionMessage && <p className="connection-notice" role="status">{connectionMessage}</p>}
-    <Tabs.Root className="workspace-tabs" value={tab} onValueChange={setTab}>
-      <Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Play size={12}/> New run</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={12}/> Activity {activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger><Tabs.Trigger className="studio-tab" value="results"><Box size={12}/> Results</Tabs.Trigger></Tabs.List>
-      <Tabs.Content className="studio-panel" value="run" forceMount><RunForm schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); refreshJobs(); }} onTabChange={setTab} remotePromptKey={remotePromptKey} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={(id) => { setStatusBarOpen(true); setLogsOpen(true); setActiveId(id); previewVersion.current = null; finalLoaded.current = null; setViewerLoadRequest((current) => current + 1); }} onCancel={cancelJob} onRefresh={refreshJobs} onRetried={onRetried}/></Tabs.Content>
-      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel refreshKey={jobs.filter((job) => ["completed", "failed", "cancelled", "interrupted"].includes(job.status)).map((job) => `${job.id}:${job.status}`).join("|")} onStarted={(job) => { setStatusBarOpen(true); setActiveId(job.id); void refreshJobs(); setTab("activity"); }} /></Tabs.Content>
-    </Tabs.Root><div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onLostPointerCapture={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(420))} onKeyDown={resizeSidebarWithKeyboard}/></aside><Viewer activeJob={activeJob} live={live} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} onRetried={onRetried} setup={setup} setupRefreshing={setupRefreshing} onRefreshSetup={refreshSetup} onSetupChange={setSetup}/></div>;
+  return <div className={`app-shell workspace-${tab} ${mobileDetail ? "has-selection" : ""} ${sidebarCollapsed ? "library-collapsed" : ""} ${logsOpen && activeJob ? "has-details" : ""}`} style={{ "--library-width": `${sidebarWidth}px` } as React.CSSProperties}>
+    <header className="workspace-header"><Brand collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((current) => !current)}/><span className="header-divider"/><div className="workspace-location">Workspace <ChevronRight size={13}/><strong>{tab === "run" ? "New experiment" : tab === "activity" ? "Experiments" : "Existing reconstructions"}</strong></div><div className="header-actions"><button type="button" className={`environment-button ${setup?.status || "checking"}`} aria-expanded={environmentOpen} onClick={() => setEnvironmentOpen((open) => !open)}><span/>{setup?.status === "ready" ? "This computer ready" : setup?.status === "error" ? "Setup required" : setup ? "This computer checks" : "Checking this computer"}<ChevronDown size={13}/></button><a href="https://github.com/borglab/gtsfm" target="_blank" rel="noreferrer" aria-label="Open GTSFM GitHub repository"><Github size={18}/></a></div></header>
+    {environmentOpen && <div className="environment-popover"><SetupPanel setup={setup} refreshing={setupRefreshing} onRefresh={refreshSetup} onSetupChange={setSetup} onClose={() => setEnvironmentOpen(false)}/></div>}
+    {importError && <p className="connection-notice" role="alert">{importError}</p>}
+    {connectionMessage && <p className="connection-notice workspace-connection" role="status">{connectionMessage}</p>}
+    <Tabs.Root className="workspace-tabs" orientation="horizontal" value={tab} onValueChange={changeTab}>
+      <nav className="workspace-nav" aria-label="Studio"><Tabs.List className="studio-tabs" aria-label="Workspace sections"><Tabs.Trigger className="studio-tab" value="run"><Plus size={21}/><span>New experiment</span></Tabs.Trigger><Tabs.Trigger className="studio-tab" value="activity"><Activity size={21}/><span>Experiments</span>{activeCount > 0 && <span id="activeJobCount">{activeCount}</span>}</Tabs.Trigger></Tabs.List><div className="experiment-import"><input ref={importFile} type="file" accept=".json,application/json" hidden aria-label="Import experiment record" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; setImportError(""); try { const record = JSON.parse(await file.text()); const result = await getJson<{settings: Record<string, unknown>}>("/api/experiments/import", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(record)}); setReuse({settings: result.settings, version: Date.now()}); changeTab("run"); } catch (reason) { setImportError(errorMessage(reason)); } event.target.value = ""; }}/><button type="button" className="text-button" disabled={preparing} onClick={() => importFile.current?.click()}><FolderUp size={18}/> Import experiment</button></div></nav>
+      <aside id="sidebar" role={tab === "results" ? "complementary" : "main"} aria-label={tab === "run" ? "New experiment" : tab === "activity" ? "Experiments" : "Existing reconstructions"} className={`${sidebarCollapsed ? "sidebar-collapsed" : ""} ${sidebarResizing ? "sidebar-resizing" : ""}`} style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}>
+      <Tabs.Content className="studio-panel" value="run" forceMount><RunForm onPreparing={setPreparing} reuse={reuse} schema={schema} hardware={hardware} samples={samples} samplesLoading={samplesLoading} onStarted={showStartedJob} schemaLoading={schemaLoading} schemaError={schemaError} onRetrySchema={() => { void loadSchema(); void loadSamples(); }}/></Tabs.Content>
+      <Tabs.Content className="studio-panel" value="activity" forceMount><ActivityPanel jobs={jobs} activeId={activeId} onSelect={selectExperiment} onBrowse={() => changeTab("results")} onCancel={cancelJob} onRefresh={refreshJobs} onRetried={onRetried}/></Tabs.Content>
+      <Tabs.Content className="studio-panel" value="results" forceMount><ResultsPanel onSceneOpened={() => { if (window.matchMedia("(max-width: 850px)").matches) setSidebarCollapsed(true); }} refreshKey={jobs.filter((job) => ["completed", "failed", "cancelled", "interrupted"].includes(job.status)).map((job) => `${job.id}:${job.status}`).join("|")} onStarted={showStartedJob} /></Tabs.Content>
+<div className="sidebar-resize-handle" role="separator" aria-label="Resize side panel" aria-orientation="vertical" aria-valuemin={SIDEBAR_MIN_WIDTH} aria-valuemax={SIDEBAR_MAX_WIDTH} aria-valuenow={sidebarWidth} tabIndex={sidebarCollapsed ? -1 : 0} title="Drag to resize side panel" onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={finishSidebarResize} onPointerCancel={finishSidebarResize} onLostPointerCapture={finishSidebarResize} onDoubleClick={() => setSidebarWidth(constrainSidebarWidth(320))} onKeyDown={resizeSidebarWithKeyboard}/></aside>
+    </Tabs.Root><div className="viewer-workspace"><ExperimentDetails enabled={tab === "activity"} onBack={() => setMobileDetail(false)} job={activeJob} jobs={jobs} onReuse={(settings) => { setReuse({settings, version: Date.now()}); changeTab("run"); }} onCancel={cancelJob} live={live} onLogs={() => setLogsOpen((open) => !open)}><Viewer key={tab === "activity" && activeId ? activeId : "library"} activeJob={tab === "activity" ? activeJob : null} live={tab === "activity" ? live : null} logsOpen={logsOpen} setLogsOpen={setLogsOpen} statusBarOpen={statusBarOpen} setStatusBarOpen={setStatusBarOpen} onCancelJob={cancelJob} onRetried={onRetried}/></ExperimentDetails></div>{logsOpen && activeJob && <div className="run-details-workspace"><LogPanel open={logsOpen} job={activeJob} onClose={() => setLogsOpen(false)} onRetried={onRetried} live={live}/></div>}</div>;
 }
 
 const root = document.getElementById("root");

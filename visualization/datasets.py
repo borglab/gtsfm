@@ -2,11 +2,32 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import hashlib
+import json
+import shutil
+import tarfile
+from collections.abc import Iterator
+from pathlib import Path, PurePosixPath
 from typing import Any
 
-
 IMAGE_SUFFIXES = {".avif", ".bmp", ".heic", ".heif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"}
+
+
+def dataset_files(root: Path) -> Iterator[Path]:
+    """Yield regular dataset files, excluding Studio's root download receipt.
+
+    Args:
+        root: Selected dataset or image directory.
+
+    Yields:
+        Input files in deterministic order, without links or external paths.
+    """
+    root = root.resolve()
+    for path in sorted(root.rglob("*")):
+        if path == root / ".gtsfm-sample.json":
+            continue
+        if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root):
+            yield path
 
 
 def resolve_relative_loader_paths(
@@ -29,3 +50,58 @@ def resolve_relative_loader_paths(
             str((dataset_dir / image_path).resolve()) if not image_path.is_absolute() else str(image_path.resolve())
         )
     return resolved, images_dir
+
+
+def extract_input_archive(archive_path: Path, destination: Path) -> tuple[int, int]:
+    """Extract regular files from a tar archive without allowing path traversal or links."""
+
+    file_count = 0
+    total_bytes = 0
+    with tarfile.open(archive_path, mode="r:*") as archive:
+        for member in archive.getmembers():
+            relative = PurePosixPath(member.name.replace("\\", "/"))
+            if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+                raise ValueError(f"Unsafe path in uploaded archive: {member.name}")
+            target = destination.joinpath(*relative.parts)
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile():
+                raise ValueError(f"Unsupported entry in uploaded archive: {member.name}")
+            source = archive.extractfile(member)
+            if source is None:
+                raise ValueError(f"Unable to read uploaded archive entry: {member.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            file_count += 1
+            total_bytes += target.stat().st_size
+    return file_count, total_bytes
+
+
+def dataset_manifest(root: Path) -> Iterator[tuple[str, int, str]]:
+    """Describe the exact regular files included in a dataset transfer.
+
+    Args:
+        root: Managed or local input folder.
+
+    Yields:
+        Relative path, byte count, and SHA-256 for each input file.
+    """
+    root = root.resolve()
+    for path in dataset_files(root):
+        with path.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        yield path.relative_to(root).as_posix(), path.stat().st_size, digest
+
+
+def dataset_fingerprint(root: Path) -> str:
+    """Identify a folder by its deterministic manifest for upload reuse.
+
+    Args:
+        root: Managed or local input folder.
+
+    Returns:
+        SHA-256 of the serialized file manifest.
+    """
+    return hashlib.sha256(json.dumps(list(dataset_manifest(root))).encode()).hexdigest()

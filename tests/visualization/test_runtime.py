@@ -560,10 +560,17 @@ def test_retry_checks_auth_status_and_current_input_availability(tmp_path: Path,
 def test_remote_retry_reuses_private_credentials_without_exposing_them(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(runtime.JobManager, "_run_remote", lambda *args: None)
     manager = runtime.JobManager(tmp_path)
-    original = manager.start({
-        "name": "remote-retry", "execution_target": "remote", "remote_endpoint": "https://gpu.example",
-        "api_key": "secret", "config_name": "vggt", "dataset_dir": "/data/original", "threads_per_worker": 16,
-    })
+    original = manager.start(
+        {
+            "name": "remote-retry",
+            "execution_target": "remote",
+            "remote_endpoint": "https://gpu.example",
+            "api_key": "secret",
+            "config_name": "vggt",
+            "dataset_dir": "/data/original",
+            "threads_per_worker": 16,
+        }
+    )
     failed = manager.get(original["id"])
     failed.status = "failed"
     retried = manager.retry(failed.id)
@@ -576,9 +583,10 @@ def test_failure_prompt_checks_auth_and_job_id(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setenv("GTSFM_API_KEY", "test-key")
     client = TestClient(create_app(tmp_path))
     assert client.get("/api/jobs/missing/diagnostic-prompt").status_code == 401
-    assert client.get(
-        "/api/jobs/missing/diagnostic-prompt", headers={"Authorization": "Bearer test-key"}
-    ).status_code == 404
+    assert (
+        client.get("/api/jobs/missing/diagnostic-prompt", headers={"Authorization": "Bearer test-key"}).status_code
+        == 404
+    )
 
 
 def test_remote_failure_prompt_uses_remote_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -616,7 +624,10 @@ def test_remote_failure_prompt_uses_remote_log(tmp_path: Path, monkeypatch: pyte
 
 def test_completed_job_exposes_splat_download(tmp_path: Path) -> None:
     output_root = tmp_path / "runs" / "finished"
+    _write_test_splat(output_root / "child" / "gaussian_splats.ply")
     _write_test_splat(output_root / "gaussian_splats.ply")
+    final = output_root / "gaussian_splats.ply"
+    final.write_bytes(final.read_bytes() + b"\n# run-level export\n")
     app = create_app(tmp_path)
     manager = app.state.gtsfm_jobs
     manager._jobs["finished-job"] = runtime.ManagedJob(
@@ -640,6 +651,51 @@ def test_completed_job_exposes_splat_download(tmp_path: Path) -> None:
     response = client.get("/api/jobs/finished-job/splat", params={"format": "ply"})
     assert response.status_code == 200
     assert response.content.startswith(b"ply\n")
+    assert response.content == final.read_bytes()
+
+
+def test_remote_splat_urls_are_advertised_only_after_local_download(tmp_path: Path) -> None:
+    """Remote job IDs and paths must never escape into local viewer requests."""
+    app = create_app(tmp_path)
+    manager = app.state.gtsfm_jobs
+    live_root = manager.live_root("local-job")
+    live_root.mkdir(parents=True)
+    output = tmp_path / "runs" / "local-job"
+    manager._jobs["local-job"] = runtime.ManagedJob(
+        id="local-job",
+        name="Local",
+        status="running",
+        created_at="",
+        updated_at="",
+        output_root=str(output),
+        live_root=str(live_root),
+        spec={},
+        command=[],
+    )
+    (live_root / "status.json").write_text(
+        json.dumps(
+            {
+                "job_id": "remote-job",
+                "job_status": "completed",
+                "stage": "gaussian_splatting",
+                "preview_url": "/api/jobs/remote-job/live-splats",
+                "preview_version": 123,
+                "final_url": "/data/runs/remote-job/gaussian_splats.ply",
+            }
+        )
+    )
+    client = TestClient(app)
+    pending = client.get("/api/jobs/local-job/live").json()
+    assert pending["job_id"] == "local-job" and pending["job_status"] == "running"
+    assert pending["stage"] == "gaussian_splatting"
+    assert not {"preview_url", "preview_version", "final_url"}.intersection(pending)
+
+    _write_test_splat(live_root / "live_splats.ply")
+    _write_test_splat(output / "gaussian_splats.ply")
+    ready = client.get("/api/jobs/local-job/live").json()
+    assert ready["preview_url"].startswith("/api/jobs/local-job/live-splats?")
+    assert client.get(ready["preview_url"]).content.startswith(b"ply\n")
+    assert client.get(ready["final_url"]).content.startswith(b"ply\n")
 
 
 def test_live_job_exposes_dask_worker_status(tmp_path: Path) -> None:
@@ -751,6 +807,28 @@ def test_remote_workspace_retries_truncated_status_response(monkeypatch: pytest.
 
     assert result == {"status": "ready"}
     assert attempts == 2
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        (b'{"error":"A Modal reconstruction is already running. secret"}', "already running. [redacted]"),
+        (b"<html>Bad gateway</html>", "Remote workspace returned HTTP 400"),
+    ],
+)
+def test_remote_rejection_reports_provider_reason_without_replaying_post(monkeypatch, body, expected) -> None:
+    """Show actionable control-service errors without leaking the bearer token."""
+    attempts = []
+
+    def reject(request, **_kwargs):
+        attempts.append(request)
+        raise runtime.urllib.error.HTTPError(request.full_url, 400, "Bad Request", {}, BytesIO(body))
+
+    monkeypatch.setattr(runtime.urllib.request, "urlopen", reject)
+    with pytest.raises(ValueError, match=expected.replace("[", r"\[").replace("]", r"\]")) as error:
+        runtime.JobManager._remote_json("https://workspace.example/api/jobs", "secret", payload={"name": "one"})
+    assert "secret" not in str(error.value)
+    assert len(attempts) == 1
 
 
 def test_workspace_rejects_unknown_github_sample(tmp_path: Path) -> None:
@@ -1043,6 +1121,8 @@ def test_job_cancel_forwards_to_remote_vm(tmp_path: Path, monkeypatch: pytest.Mo
         "cancel_status": "confirmed",
     }
     assert job.log_tail[-1] == "Modal job cancellation confirmed."
+    assert manager.cancel(job.id)["remote"]["cancel_status"] == "confirmed"
+    assert len(calls) == 1
 
 
 def test_job_cancel_during_modal_start_forwards_after_remote_accepts(
@@ -1125,7 +1205,11 @@ def test_remote_job_keeps_modal_and_ssh_credentials_private(tmp_path: Path, monk
     assert "/private/key/path" not in str(job)
 
 
-def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("provider", ["modal", "api"])
+def test_remote_job_transfers_local_dataset_and_retrieves_complete_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, provider: str
+) -> None:
+    """Every HTTP provider stages inputs and returns local geometry with photo metadata."""
     dataset = tmp_path / "dataset"
     dataset.mkdir()
     (dataset / "image.jpg").write_bytes(b"image")
@@ -1146,13 +1230,25 @@ def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkey
             return {}
         return {"id": "remote-job", "status": "completed", "return_code": 0, "log_tail": []}
 
+    def download_results(url: str, api_key: str, destination: Path) -> None:
+        assert url.endswith("/api/jobs/remote-job/results?include_images=false")
+        assert api_key == "secret"
+        with tarfile.open(destination, "w") as archive:
+            for name in ("cameras.txt", "images.txt", "points3D.txt"):
+                content = f"downloaded {name}".encode()
+                member = tarfile.TarInfo(f"results/merged_retriangulated/{name}")
+                member.size = len(content)
+                archive.addfile(member, BytesIO(content))
+
     monkeypatch.setattr(runtime.JobManager, "_remote_upload_directory", staticmethod(fake_upload))
     monkeypatch.setattr(runtime.JobManager, "_remote_json", staticmethod(fake_remote_json))
+    monkeypatch.setattr(runtime.JobManager, "_remote_download", staticmethod(download_results))
     manager = runtime.JobManager(tmp_path / "results")
     public = manager.start(
         {
             "name": "remote-transfer",
             "execution_target": "remote",
+            "remote_provider": provider,
             "remote_endpoint": "https://gpu.example.test",
             "api_key": "secret",
             "dataset_dir": str(dataset),
@@ -1168,6 +1264,10 @@ def test_remote_job_transfers_local_dataset_before_submit(tmp_path: Path, monkey
     assert posted["dataset_dir"] == "/mnt/gtsfm-studio/results/.gtsfm/uploads/remote-dataset"
     assert posted["execution_target"] == "local"
     assert managed.status == "completed"
+    assert "workspace_url" not in managed.remote
+    output = Path(managed.output_root)
+    assert (output / "results/merged_retriangulated/points3D.txt").read_text() == "downloaded points3D.txt"
+    assert json.loads((output / "studio-inputs.json").read_text()) == {"dataset_dir": str(dataset)}
     assert json.loads((Path(managed.live_root) / "status.json").read_text(encoding="utf-8")) == {}
 
 
@@ -1314,7 +1414,7 @@ def test_previous_uploads_find_legacy_folders_and_skip_unsafe_entries(tmp_path: 
     assert items[0]["analysis"]["image_count"] == 1
 
 
-def test_previous_uploads_preserve_archive_root_and_distinguish_duplicates(tmp_path: Path) -> None:
+def test_previous_uploads_preserve_archive_root_and_reuse_identical_content(tmp_path: Path) -> None:
     client = TestClient(create_app(tmp_path))
     responses = [
         client.post(
@@ -1324,11 +1424,11 @@ def test_previous_uploads_preserve_archive_root_and_distinguish_duplicates(tmp_p
         for _ in range(2)
     ]
     items = TestClient(create_app(tmp_path)).get("/api/uploads").json()["items"]
-    assert len(items) == 2
+    assert len(items) == 1
+    assert responses[0]["id"] == responses[1]["id"]
+    assert responses[1]["reused"] is True
+    assert items[0]["name"] == "dataset"
     assert {item["path"] for item in items} == {item["path"] for item in responses}
-    assert len({item["id"] for item in items}) == 2
-    assert all(item["name"] == "dataset" for item in items)
-    assert items[0]["uploaded_at"] >= items[1]["uploaded_at"]
 
 
 def test_previous_uploads_require_api_key_and_handle_empty_workspace(tmp_path: Path, monkeypatch) -> None:

@@ -1,0 +1,1 @@
+IBM Plex Sans (regular/medium) and IBM Plex Mono (regular), served locally. Retrieved from the Google Fonts CSS API (family IBM Plex Sans and IBM Plex Mono) and fonts.gstatic.com. Licensed under SIL OFL 1.1; see OFL.txt. The build emits hashed font assets under visualization/static/assets.

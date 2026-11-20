@@ -51,6 +51,13 @@ gtsfm viz               # open existing results
 gtsfm run --no-browser  # start the workspace without opening a browser
 ```
 
+For reusable compute settings, the existing **Cluster config (YAML)** field accepts
+a local Dask constructor configuration through Hydra/OmegaConf. Dask runtime policies
+use native Dask YAML and environment settings. See [Dask configuration](docs/setup/dask-configuration.md).
+
+For Mac-hosted Studio with saved UI configurations and automatic SSH execution,
+see [Studio execution configurations](docs/setup/studio-execution.md).
+
 Results open at the first reconstructed camera, with its photo selected in the
 collapsible **Photos** sidebar. Click a thumbnail (or use the camera arrows) to
 move to that camera, and use the enlarge button to inspect a larger photo.
@@ -83,17 +90,10 @@ Additional Gaussian optimizer presets placed in `gtsfm/configs/gaussian_splattin
 
 The default VGGT checkpoint is downloaded from Hugging Face on first use when it is not already present. An explicitly configured checkpoint path is never replaced automatically.
 
-To submit work to a remote GPU machine, start its workspace with an API key:
-
-```bash
-GTSFM_API_KEY=your-secret gtsfm run --host 0.0.0.0 --no-browser
-```
-
-Choose **Remote VM** in the workspace, then select an API or SSH connection. Modal is the first hosted API option: enter its token ID and token secret separately, or paste the full `modal token set --token-id … --token-secret …` command into either field and the workspace will split it automatically.2`
-
-GTSFM sample datasets are downloaded directly by the remote workspace. User-selected folders are archived and streamed to the protected workspace before the job starts. Live preview splats and the final `.ply` result are mirrored back to the local viewer. Modal account credentials and the derived workspace API key are kept in memory and are not included in public job state. Lambda Cloud, RunPod, Vast.ai, and AWS EC2 are listed as coming soon.
-
-Use HTTPS or a trusted private network when exposing a remote workspace; the built-in server is intended for local or controlled-network use.
+To run on a single Modal GPU, choose **Modal cloud** in Studio and connect your
+native Modal profile. Studio deploys the control service, stages the input
+images, and brings the resulting reconstruction and splats back to the viewer.
+See [Studio execution](docs/setup/studio-execution.md) for setup and verification.
 
 GTSFM Studio is a strict TypeScript React application built with Vite and lightweight Radix UI primitives. Its FastAPI/Uvicorn backend publishes typed OpenAPI documentation at `/docs` and streams job, log, and live-splat state over WebSockets instead of polling the server. Release wheels contain the compiled frontend and local 3D viewer vendor assets, so Node.js and external CDNs are not required to run the installed application. To work on the interface itself, start the Python API and Vite development server in separate terminals:
 

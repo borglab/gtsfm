@@ -15,6 +15,7 @@ from typing import Any, Mapping
 
 import modal
 
+from visualization.job_history import public_spec
 from visualization.runtime import JobManager, ManagedJob, _utc_now
 
 
@@ -75,7 +76,9 @@ SOURCE_EXCLUDES = [
     "**/examples/**",
     "**/*.ipynb",
 ]
-THIRDPARTY_EXCLUDES = [*SOURCE_EXCLUDES, "**/assets/**"]
+# NetVLAD downloads checkpoints here at runtime. They are not source and may be
+# changing while a local experiment and a Modal deployment run concurrently.
+THIRDPARTY_EXCLUDES = [*SOURCE_EXCLUDES, "**/assets/**", "**/hloc/weights/**"]
 
 RUNTIME_ENV = {
     # Modal's Python layer can leave CC/CXX pointing at clang even though the
@@ -93,6 +96,11 @@ RUNTIME_ENV = {
 def _build_workspace_images() -> tuple[modal.Image, modal.Image]:
     """Build and mount local sources only during deployment."""
 
+    source_env = {
+        key: os.environ[key]
+        for key in ("GTSFM_SOURCE_COMMIT", "GTSFM_SOURCE_DIRTY", "GTSFM_SOURCE_FINGERPRINT")
+        if key in os.environ
+    }
     gpu_image = (
         modal.Image.from_registry("nvidia/cuda:12.8.1-devel-ubuntu22.04", add_python="3.12")
         .entrypoint([])
@@ -112,7 +120,8 @@ def _build_workspace_images() -> tuple[modal.Image, modal.Image]:
     )
 
     gpu_image = (
-        gpu_image.add_local_dir(SOURCE_ROOT / "gtsfm", "/root/gtsfm", ignore=SOURCE_EXCLUDES)
+        gpu_image.env(source_env)
+        .add_local_dir(SOURCE_ROOT / "gtsfm", "/root/gtsfm", ignore=SOURCE_EXCLUDES)
         .add_local_dir(SOURCE_ROOT / "visualization", "/root/visualization", ignore=SOURCE_EXCLUDES)
         .add_local_dir(SOURCE_ROOT / "thirdparty", "/root/thirdparty", ignore=THIRDPARTY_EXCLUDES)
     )
@@ -132,6 +141,7 @@ def _build_workspace_images() -> tuple[modal.Image, modal.Image]:
             "uvicorn[standard]>=0.35,<1.0",
         )
         .env(RUNTIME_ENV)
+        .env(source_env)
         .add_local_dir(SOURCE_ROOT / "gtsfm", "/root/gtsfm", ignore=SOURCE_EXCLUDES)
         .add_local_dir(SOURCE_ROOT / "visualization", "/root/visualization", ignore=SOURCE_EXCLUDES)
     )
@@ -187,12 +197,6 @@ def gtsfm_gpu_job(job_id: str, spec: dict[str, Any]) -> dict[str, Any]:
 
     def publish(payload: Mapping[str, Any]) -> None:
         state = dict(payload)
-        try:
-            previous = job_state.get(job_id)
-        except KeyError:
-            previous = None
-        if isinstance(previous, dict) and previous.get("_modal_call_id"):
-            state["_modal_call_id"] = previous["_modal_call_id"]
         preview = Path(str(state.get("live_root", ""))) / "live_splats.ply"
         if preview.is_file():
             state["_modal_preview_version"] = preview.stat().st_mtime_ns
@@ -213,11 +217,13 @@ def gtsfm_gpu_job(job_id: str, spec: dict[str, Any]) -> dict[str, Any]:
                 # job-state notification advertises this preview version.
                 workspace.commit()
                 last_committed_preview_version = preview_version
-            publish(payload)
             if job.status not in {"queued", "running"}:
+                # The control service may download results as soon as it sees
+                # completion. Publish it only after the Volume commit finishes.
                 workspace.commit()
                 publish(job.public())
                 return job.public()
+            publish(payload)
             time.sleep(1)
     except Exception as exc:
         failed = {
@@ -228,7 +234,7 @@ def gtsfm_gpu_job(job_id: str, spec: dict[str, Any]) -> dict[str, Any]:
             "updated_at": _utc_now(),
             "output_root": str(Path(WORKSPACE_MOUNT) / "results" / "runs" / job_id),
             "live_root": str(Path(WORKSPACE_MOUNT) / "results" / ".gtsfm" / "live" / job_id),
-            "spec": dict(spec),
+            "spec": public_spec(dict(spec)),
             "command": ["gtsfm", "runner"],
             "return_code": None,
             "error": str(exc),
@@ -253,17 +259,14 @@ class ModalGpuJobManager(JobManager):
         self._restore_jobs()
 
     def _restore_jobs(self) -> None:
-        try:
-            job_ids = job_state.get("__job_ids__") or []
-        except KeyError:
-            job_ids = []
-        for job_id in job_ids[-100:]:
-            try:
-                payload = job_state.get(job_id)
-            except KeyError:
-                continue
+        for job_id in (job_state.get("__job_ids__") or [])[-100:]:
+            payload = job_state.get(job_id)
             if isinstance(payload, dict):
-                self._restore_payload(payload)
+                job = self._restore_payload(payload)
+                # Older workspaces wrote the call ID in the worker's status record.
+                call_id = job_state.get(f"call:{job_id}") or payload.get("_modal_call_id")
+                if call_id:
+                    self._calls[job.id] = str(call_id)
 
     def _restore_payload(self, payload: Mapping[str, Any]) -> ManagedJob:
         job_id = str(payload["id"])
@@ -277,7 +280,7 @@ class ModalGpuJobManager(JobManager):
                 updated_at=str(payload.get("updated_at") or _utc_now()),
                 output_root=str(payload.get("output_root") or self.results_root / "runs" / job_id),
                 live_root=str(payload.get("live_root") or self.runtime_root / "live" / job_id),
-                spec=dict(payload.get("spec") or {}),
+                spec=public_spec(dict(payload.get("spec") or {})),
                 command=list(payload.get("command") or ["modal", "gtsfm_gpu_job", job_id]),
             )
             self._jobs[job_id] = job
@@ -288,54 +291,49 @@ class ModalGpuJobManager(JobManager):
         job.return_code = payload.get("return_code")
         job.error = str(payload["error"]) if payload.get("error") else None
         job.log_tail = [str(line) for line in payload.get("log_tail") or []][-250:]
-        call_id = str(payload.get("_modal_call_id") or "")
-        if call_id:
-            self._calls[job_id] = call_id
         return job
 
     def _sync(self, job: ManagedJob) -> ManagedJob:
-        try:
-            payload = job_state.get(job.id)
-        except KeyError:
-            return job
-        if not isinstance(payload, dict):
-            return job
+        """Read published state and make committed results visible to the web service."""
         with self._lock:
+            payload = job_state.get(job.id)
+            if not isinstance(payload, dict):
+                return job
             job = self._restore_payload(payload)
-        call_id = self._calls.get(job.id)
-        if job.status in {"queued", "running"} and call_id:
-            try:
-                completed = modal.FunctionCall.from_id(call_id).get(timeout=0)
-            except TimeoutError:
-                pass
-            except Exception as exc:
-                with self._lock:
+            call_id = self._calls.get(job.id)
+            if job.status in {"queued", "running"} and call_id:
+                try:
+                    completed = modal.FunctionCall.from_id(call_id).get(timeout=0)
+                except TimeoutError:
+                    pass
+                except Exception as exc:
                     job.status = "failed"
                     job.error = f"Modal GPU worker failed: {exc}"
                     job.updated_at = _utc_now()
                     job.log_tail.append(job.error)
                     del job.log_tail[:-250]
-                failed_state = job.public()
-                failed_state["_modal_call_id"] = call_id
-                job_state[job.id] = failed_state
-            else:
-                if isinstance(completed, dict):
-                    with self._lock:
+                    job_state[job.id] = job.public()
+                else:
+                    if isinstance(completed, dict):
                         job = self._restore_payload(completed)
-        preview_version = int(payload.get("_modal_preview_version") or 0)
-        should_reload = preview_version > self._preview_versions.get(job.id, 0)
-        if job.status not in {"queued", "running"} and job.id not in self._terminal_reloads:
-            should_reload = True
-            self._terminal_reloads.add(job.id)
-        if should_reload:
-            try:
-                workspace.reload()
-                self._preview_versions[job.id] = preview_version
-            except Exception as exc:
-                with self._lock:
+
+            preview_version = int(payload.get("_modal_preview_version") or 0)
+            terminal = job.status not in {"queued", "running"}
+            if preview_version > self._preview_versions.get(job.id, 0) or (
+                terminal and job.id not in self._terminal_reloads
+            ):
+                try:
+                    workspace.reload()
+                except Exception as exc:
+                    if job.status == "completed":
+                        job.status = "running"
                     job.log_tail.append(f"Result sync is retrying: {exc}")
                     del job.log_tail[:-250]
-        return job
+                else:
+                    self._preview_versions[job.id] = preview_version
+                    if terminal:
+                        self._terminal_reloads.add(job.id)
+            return job
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -351,27 +349,16 @@ class ModalGpuJobManager(JobManager):
     def start(self, spec: Mapping[str, Any], *, job_id: str | None = None) -> dict[str, Any]:
         if str(spec.get("execution_target") or "local") != "local":
             raise ValueError("The Modal control service only accepts local worker specifications")
-        with self._lock:
-            known_jobs = list(self._jobs.values())
-        active_jobs = [job for job in known_jobs if self._sync(job).status in {"queued", "running"}]
-        if active_jobs:
-            raise ValueError("A Modal reconstruction is already running. Stop it or wait for it to finish.")
+        if str(spec.get("hardware") or "cuda:0") != "cuda:0":
+            raise ValueError("This Modal workspace runs on cuda:0; select its GPU device before starting")
         job_id = job_id or uuid.uuid4().hex[:12]
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
             raise ValueError("Job ID contains unsupported characters")
         name = re.sub(r"[^A-Za-z0-9._-]+", "-", str(spec.get("name") or "gtsfm-run")).strip("-.") or "gtsfm-run"
-        public_spec = dict(spec)
-        for secret_field in (
-            "api_key",
-            "modal_api_key",
-            "modal_token_id",
-            "modal_token_secret",
-            "modal_token_command",
-            "ssh_private_key",
-        ):
-            public_spec.pop(secret_field, None)
-        if public_spec.get("splat_implementation") == "anysplat":
-            public_spec["config_name"] = "anysplat"
+        worker_spec = public_spec(dict(spec))
+        worker_spec["hardware"] = "cuda:0"
+        if worker_spec.get("splat_implementation") == "anysplat":
+            worker_spec["config_name"] = "anysplat"
         now = _utc_now()
         job = ManagedJob(
             id=job_id,
@@ -381,54 +368,52 @@ class ModalGpuJobManager(JobManager):
             updated_at=now,
             output_root=str(self.results_root / "runs" / f"{name}-{job_id}"),
             live_root=str(self.runtime_root / "live" / job_id),
-            spec=public_spec,
+            spec=worker_spec,
             command=["modal", "gtsfm_gpu_job", job_id],
         )
+        # A workspace has one control container serving concurrent requests.
+        # Keep admission and dispatch under one lock so they share a single slot.
         with self._lock:
+            if job_id in self._jobs:
+                raise ValueError("Job ID already exists")
+            if any(self._sync(known).status in {"queued", "running"} for known in self._jobs.values()):
+                raise ValueError("A Modal reconstruction is already running. Stop it or wait for it to finish.")
             self._jobs[job_id] = job
-        workspace.commit()
-        initial = job.public()
-        job_state[job_id] = initial
-        try:
-            call = gtsfm_gpu_job.spawn(job_id, dict(spec))
-        except Exception as exc:
-            with self._lock:
+            try:
+                workspace.commit()
+                job_state[job_id] = job.public()
+                known_ids = list(job_state.get("__job_ids__") or [])
+                job_state["__job_ids__"] = [item for item in known_ids if item != job_id][-99:] + [job_id]
+                call = gtsfm_gpu_job.spawn(job_id, worker_spec)
+                self._calls[job_id] = call.object_id
+                # The worker can already be publishing. Keep the controller's
+                # durable cancellation handle separate from that status.
+                job_state[f"call:{job_id}"] = call.object_id
+            except Exception as exc:
                 job.status = "failed"
                 job.error = f"Unable to start Modal GPU worker: {exc}"
                 job.updated_at = _utc_now()
-            job_state[job_id] = job.public()
+                job_state[job_id] = job.public()
             return job.public()
-        self._calls[job_id] = call.object_id
-        state = job.public()
-        state["_modal_call_id"] = call.object_id
-        job_state[job_id] = state
-        try:
-            known_ids = list(job_state.get("__job_ids__") or [])
-        except KeyError:
-            known_ids = []
-        job_state["__job_ids__"] = [item for item in known_ids if item != job_id][-99:] + [job_id]
-        return job.public()
 
     def cancel(self, job_id: str) -> dict[str, Any]:
-        job = self.get(job_id)
-        if job is None:
-            raise KeyError(job_id)
-        if job.status not in {"queued", "running"}:
-            return job.public()
-        call_id = self._calls.get(job_id)
-        if call_id:
-            modal.FunctionCall.from_id(call_id).cancel(terminate_containers=True)
+        """Stop the active call and persist the terminal state for the workspace."""
         with self._lock:
+            job = self.get(job_id)
+            if job is None:
+                raise KeyError(job_id)
+            if job.status not in {"queued", "running"}:
+                return job.public()
+            call_id = self._calls.get(job_id)
+            if call_id:
+                modal.FunctionCall.from_id(call_id).cancel(terminate_containers=True)
             job.status = "cancelled"
             job.updated_at = _utc_now()
             job.error = None
             job.log_tail.append("Modal GPU worker terminated.")
             del job.log_tail[:-250]
-        state = job.public()
-        if call_id:
-            state["_modal_call_id"] = call_id
-        job_state[job_id] = state
-        return job.public()
+            job_state[job_id] = job.public()
+            return job.public()
 
 
 def modal_gpu_hardware() -> dict[str, Any]:

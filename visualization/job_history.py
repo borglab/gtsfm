@@ -147,5 +147,8 @@ def recover_legacy_runs(results_root: Path, known_ids: set[str]) -> Iterator[dic
             "command": [],
             "log_tail": tail,
             "retry_available": False,
-            "history_note": "Recovered from an older run log. The original command and full settings were not saved, so Retry is unavailable.",
+            "history_note": (
+                "Recovered from an older run log. The original command and full settings were not saved, "
+                "so Retry is unavailable."
+            ),
         }

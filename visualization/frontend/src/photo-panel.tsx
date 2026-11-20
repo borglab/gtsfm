@@ -22,10 +22,18 @@ const EMPTY: PhotoState = { items: [], selected: 0, loading: false };
 export function PhotoPanel() {
   const { viewer } = useViewerApi();
   const [state, setState] = useState<PhotoState>(EMPTY);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => window.matchMedia("(max-width: 1100px)").matches);
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(600);
+  const [photoErrors, setPhotoErrors] = useState(false);
+  const [imageRevision, setImageRevision] = useState(0);
   const [preview, setPreview] = useState<ScenePhoto | null>(null);
+  useEffect(() => {
+    const compact = window.matchMedia("(max-width: 1100px)");
+    const adapt = () => { if (compact.matches) setCollapsed(true); };
+    compact.addEventListener("change", adapt);
+    return () => compact.removeEventListener("change", adapt);
+  }, []);
   const list = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -62,7 +70,7 @@ export function PhotoPanel() {
     return () => element.close();
   }, [preview]);
 
-  if (!state.items.length) return null;
+  if (!state.items.length) return state.error ? <aside className="photo-panel" aria-label="Reconstruction photos"><header className="photo-panel-header"><strong>Source photographs</strong></header><p className="photo-panel-hint" role="alert">{state.error} Refresh the experiment above to retry.</p></aside> : null;
   // Only the visible rows and two neighbors exist in the DOM, even for large runs.
   const start = Math.max(0, Math.min(state.items.length - 1, Math.floor(scrollTop / ROW_HEIGHT) - 2));
   const end = Math.min(state.items.length, start + Math.ceil(height / ROW_HEIGHT) + 4);
@@ -71,7 +79,8 @@ export function PhotoPanel() {
     <aside className={`photo-panel${collapsed ? " photo-panel-collapsed" : ""}`} aria-label="Reconstruction photos">
       <header className="photo-panel-header">
         <button type="button" aria-label={collapsed ? "Expand photos" : "Collapse photos"} aria-expanded={!collapsed} onClick={() => setCollapsed(!collapsed)}>{collapsed ? <ChevronLeft size={16}/> : <ChevronRight size={16}/>}</button>
-        {!collapsed && <><strong>Photos</strong><span aria-live="polite">{state.selected + 1} / {state.items.length}</span></>}
+        {!collapsed && <>
+        {photoErrors && <button type="button" className="text-button retry-photos" onClick={() => {setPhotoErrors(false); setImageRevision((value) => value + 1);}}>Retry source photographs</button>}<strong>Photos</strong><span aria-live="polite">{state.selected + 1} / {state.items.length}</span></>}
       </header>
       {collapsed ? <ImageIcon className="photo-panel-symbol" size={18}/> : <>
         <p className="photo-panel-hint">{state.loading ? "Finding source images…" : state.error || "Select a photo to view from its camera."}</p>
@@ -86,7 +95,7 @@ export function PhotoPanel() {
               const index = start + offset;
               return <div className="photo-row" key={`${index}:${photo.name}`} style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}>
                 <button type="button" className={`photo-thumbnail${index === state.selected ? " selected" : ""}`} aria-label={`View camera ${index + 1}: ${photo.name}`} aria-current={index === state.selected ? "true" : undefined} onClick={() => select(index)}>
-                  <span className="photo-image">{photo.thumbnail ? <img src={photo.thumbnail} alt={photo.name} decoding="async" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; event.currentTarget.parentElement?.classList.add("photo-unavailable"); }}/> : <span className="photo-missing"><ImageIcon size={22}/>{state.loading ? "Loading…" : "Image unavailable"}</span>}</span>
+                  <span className="photo-image">{photo.thumbnail ? <img key={imageRevision} src={`${photo.thumbnail}${photo.thumbnail.includes("?") ? "&" : "?"}retry=${imageRevision}`} alt={photo.name} decoding="async" loading="lazy" onLoad={(event) => {event.currentTarget.dataset.loaded = "true"; event.currentTarget.parentElement?.classList.remove("photo-unavailable");}} onError={(event) => { setPhotoErrors(true); event.currentTarget.style.display = "none"; event.currentTarget.parentElement?.classList.add("photo-unavailable"); }}/> : <span className="photo-missing"><ImageIcon size={22}/>{state.loading ? "Loading…" : "Image unavailable"}</span>}</span>
                   <span className="photo-caption"><span>{index + 1}</span><span title={photo.name}>{photo.name}</span></span>
                 </button>
                 {photo.preview && <button type="button" className="photo-enlarge" aria-label={`Enlarge ${photo.name}`} onClick={() => setPreview(photo)}><Maximize2 size={13}/></button>}

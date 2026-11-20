@@ -11,9 +11,11 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 import urllib.error
 import uuid
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Any
 from urllib.parse import quote, urlparse
@@ -23,12 +25,17 @@ from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.gzip import GZipMiddleware
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.websockets import WebSocketDisconnect
 
-from visualization.datasets import IMAGE_SUFFIXES
+from visualization.datasets import IMAGE_SUFFIXES, dataset_fingerprint
+from visualization.datasets import extract_input_archive as _extract_input_archive
+from visualization.execution import ExecutionConfiguration, ExecutionStore
+from visualization.experiments import experiment_details, validate_import
+from visualization.modal_account import ModalAccount, profile_credentials
 from visualization.modal_deployment import ModalDeploymentManager, modal_workspace_api_key
 from visualization.photos import ScenePhotos
 from visualization.reconstruction import point_count, result_revision, splat_count
@@ -73,6 +80,14 @@ class ModalDiscoverRequest(BaseModel):
 
     token_id: str = ""
     token_secret: str = ""
+    profile: str = ""
+
+
+class ModalConnectRequest(BaseModel):
+    """Select a native Modal profile or request browser authorization."""
+
+    profile: str = ""
+    sign_in: bool = False
 
 
 class ModalDeployRequest(ModalDiscoverRequest):
@@ -81,6 +96,7 @@ class ModalDeployRequest(ModalDiscoverRequest):
     gpu: str = "L40S"
     cpu: float = 8
     memory_mb: int = 65536
+    force: bool = False
 
 
 class RunRequest(BaseModel):
@@ -97,6 +113,7 @@ class RunRequest(BaseModel):
     splat_implementation: str = "gsplat"
     execution_target: str = "local"
     hardware: str = "cpu"
+    max_run_minutes: int = Field(default=60, ge=1, le=1440)
 
 
 class SplatRequest(BaseModel):
@@ -142,7 +159,17 @@ def analyze_image_dataset(root: Path) -> dict[str, int | float]:
 
 def _remember_upload(upload_root: Path, payload: dict[str, Any]) -> dict[str, Any]:
     """Keep the exact selected root, including archives whose root contains only images/."""
-    metadata = {"name": payload["name"], "relative_root": Path(payload["path"]).relative_to(upload_root).as_posix()}
+    fingerprint = dataset_fingerprint(Path(payload["path"]))
+    for existing in previous_uploads(upload_root.parent):
+        if existing["id"] != payload["id"] and existing.get("fingerprint") == fingerprint:
+            shutil.rmtree(upload_root)
+            return {**existing, "reused": True}
+    payload["fingerprint"] = fingerprint
+    metadata = {
+        "name": payload["name"],
+        "relative_root": Path(payload["path"]).relative_to(upload_root).as_posix(),
+        "fingerprint": fingerprint,
+    }
     upload_root.with_suffix(".json").write_text(json.dumps(metadata), encoding="utf-8")
     return payload
 
@@ -156,6 +183,7 @@ def previous_uploads(uploads_root: Path) -> list[dict[str, Any]]:
         if root.is_symlink() or not root.is_dir() or not re.fullmatch(r"[0-9a-f]{12}", root.name):
             continue
         try:
+            metadata = {}
             metadata_path = root.with_suffix(".json")
             if metadata_path.is_file() and not metadata_path.is_symlink():
                 metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -181,39 +209,13 @@ def previous_uploads(uploads_root: Path) -> list[dict[str, Any]]:
                     "file_count": len(files),
                     "bytes": sum(path.stat().st_size for path in files),
                     "uploaded_at": root.stat().st_mtime,
+                    "fingerprint": metadata.get("fingerprint"),
                     "analysis": analyze_image_dataset(dataset),
                 }
             )
         except (OSError, ValueError, KeyError, TypeError):
             continue
     return sorted(items, key=lambda item: (item["uploaded_at"], item["id"]), reverse=True)
-
-
-def _extract_input_archive(archive_path: Path, destination: Path) -> tuple[int, int]:
-    """Extract regular files from a tar archive without allowing path traversal or links."""
-
-    file_count = 0
-    total_bytes = 0
-    with tarfile.open(archive_path, mode="r:*") as archive:
-        for member in archive.getmembers():
-            relative = PurePosixPath(member.name.replace("\\", "/"))
-            if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
-                raise ValueError(f"Unsafe path in uploaded archive: {member.name}")
-            target = destination.joinpath(*relative.parts)
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
-            if not member.isfile():
-                raise ValueError(f"Unsupported entry in uploaded archive: {member.name}")
-            source = archive.extractfile(member)
-            if source is None:
-                raise ValueError(f"Unable to read uploaded archive entry: {member.name}")
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open("wb") as output:
-                shutil.copyfileobj(source, output)
-            file_count += 1
-            total_bytes += target.stat().st_size
-    return file_count, total_bytes
 
 
 async def _discover_modal_endpoint(token_id: str, token_secret: str) -> dict[str, str]:
@@ -289,12 +291,20 @@ def _find_splats_file(scene_dir: Path, base_dir: Path) -> Path | None:
     return None
 
 
-def _result_files(base_dir: Path) -> tuple[list[Path], list[Path], dict[str, float]]:
-    """Scan once, then propagate each file's modification time up its directory tree."""
+def _result_files(base_dir: Path, scan_root: Path) -> tuple[list[Path], list[Path], dict[str, float]]:
+    """Index geometry files and modification times under one results scope.
+
+    Args:
+        base_dir: Root used for public catalog paths.
+        scan_root: Results subtree to scan.
+
+    Returns:
+        Sparse geometry files, Gaussian files, and modification times by directory.
+    """
     points_files: list[Path] = []
     splats_files: list[Path] = []
     latest: dict[Path, float] = {}
-    for directory, children, filenames in os.walk(base_dir, followlinks=False):
+    for directory, children, filenames in os.walk(scan_root, followlinks=False):
         children[:] = [name for name in children if name != ".gtsfm"]
         parent = Path(directory)
         for name in filenames:
@@ -308,24 +318,36 @@ def _result_files(base_dir: Path) -> tuple[list[Path], list[Path], dict[str, flo
                 points_files.append(path)
             elif name == "gaussian_splats.ply":
                 splats_files.append(path)
-    # Deepest directories first, including ancestors that have no files themselves.
     for directory in sorted(latest, key=lambda path: len(path.parts), reverse=True):
         modified = latest[directory]
         while directory != base_dir:
             directory = directory.parent
             latest[directory] = max(latest.get(directory, modified), modified)
-    return points_files, splats_files, {
-        path.relative_to(base_dir).as_posix(): modified for path, modified in latest.items()
-    }
+    return (
+        points_files,
+        splats_files,
+        {path.relative_to(base_dir).as_posix(): modified for path, modified in latest.items()},
+    )
 
 
-def discover_results(base_dir: Path) -> dict[str, Any]:
-    """Find reconstructions and modification times for their containing directories."""
+def discover_results(base_dir: Path, *, scan_root: Path | None = None) -> dict[str, Any]:
+    """Catalog saved sparse reconstructions and splats.
+
+    Args:
+        base_dir: Root of the routes serving geometry and source photos.
+        scan_root: Optional experiment directory within the routed results.
+
+    Returns:
+        Geometry entries and directory modification times relative to the routed root.
+    """
+    scan_root = scan_root or base_dir
+    if not scan_root.is_relative_to(base_dir):
+        return {"base_dir": str(base_dir), "count": 0, "items": [], "directory_modified_at": {}}
 
     scenes: list[dict[str, Any]] = []
     photos = ScenePhotos(base_dir)
     splats_attached_to_scene: set[Path] = set()
-    points_files, splats_files, directory_times = _result_files(base_dir)
+    points_files, splats_files, directory_times = _result_files(base_dir, scan_root)
     for points_file in points_files:
         parent = points_file.parent
         images_file = parent / "images.txt"
@@ -343,7 +365,7 @@ def discover_results(base_dir: Path) -> dict[str, Any]:
         rel = parent.relative_to(base_dir).as_posix()
         parts = rel.split("/")
         label = "/".join(parts[-3:]) if len(parts) >= 3 else rel
-        splats_path = _find_splats_file(parent, base_dir)
+        splats_path = _find_splats_file(parent, scan_root)
         if splats_path is not None and splat_count(splats_path) == 0:
             splats_path = None
         splats_url = None
@@ -420,6 +442,22 @@ def _export_splat(source: Path, export_format: str, name: str) -> FileResponse:
     return FileResponse(source, media_type="application/octet-stream", filename=filename)
 
 
+def _job_splats_file(output_root: Path) -> Path | None:
+    """Prefer the run-level Gaussian export over individual partition exports.
+
+    Args:
+        output_root: Directory containing one run's returned results.
+
+    Returns:
+        The shallowest Gaussian export, or None if no export exists.
+    """
+    return min(
+        output_root.rglob("gaussian_splats.ply"),
+        key=lambda path: (len(path.relative_to(output_root).parts), path.as_posix()),
+        default=None,
+    )
+
+
 def _live_state(manager: JobManager, resolved_base: Path, job_id: str) -> dict[str, object]:
     job = manager.get(job_id)
     if job is None:
@@ -447,6 +485,12 @@ def _live_state(manager: JobManager, resolved_base: Path, job_id: str) -> dict[s
                 payload.update(loaded)
         except (OSError, json.JSONDecodeError):
             pass
+    # A remote status receipt can arrive before its files have been downloaded.
+    # Only advertise resources that this Studio host can actually serve.
+    for name in ("preview_url", "preview_version", "final_url"):
+        payload.pop(name, None)
+    payload["job_id"] = job_id
+    payload["job_status"] = job.status
     dask_path = manager.live_root(job_id) / "dask.json"
     if dask_path.exists():
         try:
@@ -460,9 +504,9 @@ def _live_state(manager: JobManager, resolved_base: Path, job_id: str) -> dict[s
         version = preview_path.stat().st_mtime_ns
         payload["preview_url"] = f"/api/jobs/{job_id}/live-splats?v={version}"
         payload["preview_version"] = version
-    final_files = list(Path(job.output_root).rglob("gaussian_splats.ply"))
-    if final_files:
-        rel = final_files[0].relative_to(resolved_base).as_posix()
+    final_file = _job_splats_file(Path(job.output_root))
+    if final_file:
+        rel = final_file.relative_to(resolved_base).as_posix()
         payload["final_url"] = f"/data/{quote(rel)}"
     return payload
 
@@ -480,11 +524,21 @@ def create_app(
     *,
     job_manager: JobManager | None = None,
     hardware_provider: Callable[[], dict[str, Any]] = detect_hardware,
+    execution_store: ExecutionStore | None = None,
 ) -> FastAPI:
     """Create an isolated FastAPI workspace for ``base_dir``."""
 
     resolved_base = Path(base_dir).expanduser().resolve()
     manager = job_manager or JobManager(resolved_base)
+    configurations = execution_store or ExecutionStore()
+    modal_account = ModalAccount()
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        yield
+        modal_account.close()
+        await asyncio.to_thread(manager.shutdown)
+
     modal_deployments = ModalDeploymentManager(
         lambda token_id, token_secret: asyncio.run(_discover_modal_endpoint(token_id, token_secret))
     )
@@ -492,6 +546,7 @@ def create_app(
         title="GTSFM Studio API",
         version="0.2.0",
         description="Local and remote Structure-from-Motion workspace API.",
+        lifespan=lifespan,
     )
     app.state.gtsfm_jobs = manager
     app.state.modal_deployments = modal_deployments
@@ -637,6 +692,34 @@ def create_app(
     def list_uploads() -> dict[str, Any]:
         return {"items": previous_uploads(manager.runtime_root / "uploads")}
 
+    @app.get("/api/uploads/{upload_id}/preview", dependencies=[Depends(require_api_key)])
+    def preview_upload(upload_id: str, index: int = 0) -> FileResponse:
+        """Show actual source photographs from a managed upload.
+
+        Args:
+            upload_id: Managed input identifier, never an arbitrary filesystem path.
+            index: Zero-based photograph index.
+
+        Returns:
+            Original source photograph for the selected capture.
+        """
+        if not re.fullmatch(r"[0-9a-f]{12}", upload_id) or not 0 <= index <= 2:
+            raise HTTPException(status_code=404, detail="Photograph not found")
+        root = manager.runtime_root / "uploads" / upload_id
+        if not root.is_dir() or root.is_symlink():
+            raise HTTPException(status_code=404, detail="Photograph not found")
+        images = [
+            path
+            for path in sorted(root.rglob("*"))
+            if path.is_file()
+            and not path.is_symlink()
+            and path.suffix.lower() in IMAGE_SUFFIXES
+            and path.resolve().is_relative_to(root.resolve())
+        ]
+        if index >= len(images):
+            raise HTTPException(status_code=404, detail="Photograph not found")
+        return FileResponse(images[index])
+
     @app.post("/api/uploads", dependencies=[Depends(require_api_key)])
     def upload_input_folder(
         files: Annotated[list[UploadFile], File()], manifest: Annotated[str, Form()] = "[]"
@@ -738,13 +821,31 @@ def create_app(
         except (ValueError, urllib.error.URLError, TimeoutError) as exc:
             raise HTTPException(status_code=400, detail=f"Unable to inspect remote workspace: {exc}") from exc
 
+    @app.get("/api/modal/account", dependencies=[Depends(require_api_key)])
+    def modal_account_status() -> dict[str, Any]:
+        """Show native profile names and connection state without credentials."""
+        return modal_account.public()
+
+    @app.post("/api/modal/connect", dependencies=[Depends(require_api_key)])
+    async def connect_modal_account(payload: ModalConnectRequest) -> dict[str, Any]:
+        """Use an existing local account or open Modal's browser authorization."""
+        return await modal_account.connect(payload.profile, sign_in=payload.sign_in)
+
+    def modal_credentials(payload: ModalDiscoverRequest) -> tuple[str, str]:
+        """Resolve account credentials on the server for normal browser connections."""
+        if payload.token_id or payload.token_secret:
+            if not payload.token_id.startswith("ak-") or not payload.token_secret.startswith("as-"):
+                raise ValueError("Provide both valid Modal credentials, or select a native profile.")
+            return payload.token_id, payload.token_secret
+        credentials = profile_credentials(payload.profile or modal_account.public()["profile"])
+        return credentials.token_id, credentials.token_secret
+
     @app.post("/api/modal/discover", dependencies=[Depends(require_api_key)])
     async def discover_modal_endpoint(payload: ModalDiscoverRequest) -> dict[str, str]:
-        if not payload.token_id.startswith("ak-") or not payload.token_secret.startswith("as-"):
-            raise HTTPException(status_code=400, detail="Enter a valid Modal token ID and token secret")
         try:
-            discovered = await _discover_modal_endpoint(payload.token_id, payload.token_secret)
-            discovered["api_key"] = modal_workspace_api_key(payload.token_id, payload.token_secret)
+            token_id, token_secret = modal_credentials(payload)
+            discovered = await _discover_modal_endpoint(token_id, token_secret)
+            discovered["api_key"] = modal_workspace_api_key(token_id, token_secret)
             return discovered
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -752,12 +853,25 @@ def create_app(
     @app.post("/api/modal/deploy", status_code=202, dependencies=[Depends(require_api_key)])
     def deploy_modal_workspace(payload: ModalDeployRequest) -> dict[str, Any]:
         try:
+            token_id, token_secret = modal_credentials(payload)
+            options = {}
+            active_modal = any(
+                job["status"] in {"queued", "running"}
+                and job.get("spec", {}).get("execution_target") == "remote"
+                and job.get("spec", {}).get("remote_connection", "api") == "api"
+                for job in manager.list()
+            )
+            if active_modal:
+                options["allow_update"] = False
+            if payload.force:
+                options["force"] = True
             return modal_deployments.start(
-                payload.token_id,
-                payload.token_secret,
+                token_id,
+                token_secret,
                 payload.gpu,
                 cpu=payload.cpu,
                 memory_mb=payload.memory_mb,
+                **options,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -776,6 +890,57 @@ def create_app(
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Modal deployment not found") from exc
 
+    @app.get("/api/execution-configurations", dependencies=[Depends(require_api_key)])
+    def list_execution_configurations() -> dict:
+        try:
+            return {"items": configurations.list()}
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail=f"Unable to read saved configurations: {exc}") from exc
+
+    @app.put("/api/execution-configurations", dependencies=[Depends(require_api_key)])
+    def save_execution_configuration(payload: ExecutionConfiguration) -> dict:
+        try:
+            return configurations.save(payload)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail=f"Unable to save configuration: {exc}") from exc
+
+    @app.delete("/api/execution-configurations/{name:path}", dependencies=[Depends(require_api_key)])
+    def delete_execution_configuration(name: str) -> dict:
+        try:
+            configurations.delete(name)
+            return {"deleted": name}
+        except (ValueError, OSError) as exc:
+            raise HTTPException(status_code=400, detail=f"Unable to delete configuration: {exc}") from exc
+
+
+    @app.post("/api/experiments/import", dependencies=[Depends(require_api_key)])
+    def import_experiment(payload: dict[str, Any]) -> dict[str, Any]:
+        """Load a shared experiment's scientific settings without executing it."""
+        try:
+            return {"settings": validate_import(payload)}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/experiments/{job_id}", dependencies=[Depends(require_api_key)])
+    def inspect_experiment(job_id: str) -> dict[str, Any]:
+        """Return configuration, provenance, metrics and geometry for one run."""
+        job = manager.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Experiment not found")
+        root = Path(job.output_root).resolve()
+        return experiment_details(job, discover_results(resolved_base, scan_root=root)["items"])
+
+    @app.get("/api/experiments/{job_id}/export", dependencies=[Depends(require_api_key)])
+    def export_experiment(job_id: str) -> Response:
+        """Download the reproducible experiment record alongside its measured results."""
+        details = inspect_experiment(job_id)
+        payload = {**details["provenance"], "configuration": details["configuration"], "metrics": details["metrics"]}
+        return Response(
+            json.dumps(payload, indent=2, allow_nan=False),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="gtsfm-experiment-{job_id}.json"'},
+        )
+
     @app.get("/api/jobs", dependencies=[Depends(require_api_key)])
     def list_jobs() -> dict[str, Any]:
         return {"items": manager.list()}
@@ -790,15 +955,47 @@ def create_app(
         except (KeyError, SampleDownloadError, TypeError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.get("/api/jobs/{job_id}/results", dependencies=[Depends(require_api_key)])
+    def download_job_results(job_id: str, include_images: bool = False) -> FileResponse:
+        job = manager.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if job.status != "completed":
+            raise HTTPException(status_code=409, detail="Results are available after the run completes")
+        temporary = Path(tempfile.mkdtemp(dir=manager.runtime_root))
+        archive_path = temporary / "results.tar"
+        try:
+            with tarfile.open(archive_path, "w") as archive:
+                root = Path(job.output_root).resolve()
+                for path in sorted(root.rglob("*")):
+                    if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root):
+                        archive.add(path, arcname=path.relative_to(root).as_posix(), recursive=False)
+                if include_images:
+                    included = set()
+                    for model in root.rglob("images.txt"):
+                        scene = model.parent
+                        for camera_id, name in photos.records(scene):
+                            source_name = photos.source_name(scene, camera_id, name)
+                            image = photos.source(photos.roots(scene), source_name)
+                            if image is not None and source_name not in included:
+                                archive.add(image, arcname=f"source-images/{source_name}", recursive=False)
+                                included.add(source_name)
+        except BaseException:
+            shutil.rmtree(temporary)
+            raise
+        return FileResponse(
+            archive_path, filename=f"{job.name}-results.tar", background=BackgroundTask(shutil.rmtree, temporary)
+        )
+
     @app.get("/api/jobs/{job_id}/splat", dependencies=[Depends(require_api_key)])
     def download_job_splat(job_id: str, format: str = "ply") -> FileResponse:
         job = manager.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="Job not found")
-        final_files = sorted(Path(job.output_root).rglob("gaussian_splats.ply"))
-        if not final_files:
+        final_file = _job_splats_file(Path(job.output_root))
+        if final_file is None:
             raise HTTPException(status_code=404, detail="This run has no Gaussian splat result")
-        return _export_splat(final_files[0], format, job.name)
+        return _export_splat(final_file, format, job.name)
 
     @app.get("/api/jobs/{job_id}", dependencies=[Depends(require_api_key)])
     def get_job(job_id: str) -> dict[str, Any]:
