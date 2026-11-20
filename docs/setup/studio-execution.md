@@ -15,8 +15,10 @@ Studio displays actual capture previews and reads image headers automatically.
 **Run experiment** performs preparation before submitting the reconstruction.
 **Experiments** keeps each run's progress, geometry, camera photographs, scalar
 metrics, resolved pipeline configuration, logs and downloads in the same context.
-The source commit, content fingerprint, Python/package versions and SHA-256 input
-manifest are recorded for new runs. Older runs explicitly report missing provenance.
+New runs record the source content fingerprint, Python/package versions and SHA-256
+input manifest. A checkout also records its Git commit and whether it has local
+changes. An installed wheel fingerprints its installed files. Older runs
+explicitly report missing provenance.
 
 **Use these settings** makes an editable copy without starting a job. The experiment
 record downloads as `gtsfm.experiment.v1` JSON, including measured metrics and the

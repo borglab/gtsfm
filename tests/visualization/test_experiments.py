@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -13,6 +14,7 @@ from visualization import app as app_runtime
 from visualization import experiments, modal_account, runtime
 from visualization.app import create_app
 from visualization.modal_account import ModalAccount, ModalCredentials
+from visualization.source_identity import source_identity
 
 
 def _job(root: Path, **settings: object) -> SimpleNamespace:
@@ -53,6 +55,40 @@ def test_capture_records_input_contents_and_excludes_credentials(tmp_path: Path,
     experiments.capture_experiment(job)
     changed = json.loads((Path(job.output_root) / "experiment.json").read_text())
     assert changed["dataset"]["manifest_sha256"] != record["dataset"]["manifest_sha256"]
+
+
+def test_installed_source_identity_uses_package_bytes(tmp_path: Path, monkeypatch) -> None:
+    """Installed code has its own fingerprint even inside a Git worktree."""
+    monkeypatch.delenv("GTSFM_SOURCE_COMMIT", raising=False)
+    root = tmp_path / "site-packages"
+    source = root / "visualization" / "app.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("answer = 1\n")
+    first = source_identity(root)
+    assert first["fingerprint"] and first["commit"] is None and first["dirty"] is None
+
+    subprocess.run(["git", "init", "--quiet", str(tmp_path)], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(tmp_path),
+            "-c",
+            "user.name=GTSfM",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "--quiet",
+            "--allow-empty",
+            "--no-gpg-sign",
+            "-m",
+            "Initial commit",
+        ],
+        check=True,
+    )
+    assert source_identity(root) == first
+    source.write_text("answer = 2\n")
+    assert source_identity(root)["fingerprint"] != first["fingerprint"]
 
 
 def test_remote_experiment_preserves_submission_and_uses_execution_provenance(tmp_path: Path, monkeypatch) -> None:
