@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from visualization.source_identity import source_identity
+
 SUPPORTED_MODAL_GPUS = {
     "T4",
     "L4",
@@ -72,6 +74,7 @@ class ModalDeployment:
     endpoint: str = ""
     api_key: str = ""
     error: str = ""
+    source: dict[str, Any] = field(default_factory=dict, repr=False)
     cancel_requested: bool = field(default=False, repr=False, compare=False)
     process: subprocess.Popen[str] | None = field(default=None, repr=False, compare=False)
     token_id: str = field(default="", repr=False, compare=False)
@@ -109,6 +112,8 @@ class ModalDeploymentManager:
         *,
         cpu: float = 8,
         memory_mb: int = 65536,
+        allow_update: bool = True,
+        force: bool = False,
     ) -> dict[str, Any]:
         if not token_id.startswith("ak-") or not token_secret.startswith("as-"):
             raise ValueError("Enter a valid Modal token ID and token secret")
@@ -119,15 +124,38 @@ class ModalDeploymentManager:
         if not 4096 <= memory_mb <= 524288:
             raise ValueError("Modal memory allocation must be between 4 GB and 512 GB")
         source_root = find_source_root()
-        deployment = ModalDeployment(
-            id=uuid.uuid4().hex[:12],
-            gpu=gpu,
-            cpu=cpu,
-            memory_mb=memory_mb,
-            token_id=token_id,
-            token_secret=token_secret,
-        )
+        source = source_identity(source_root)
+        account_key = modal_workspace_api_key(token_id, token_secret)
         with self._lock:
+            latest = next((item for item in reversed(self._deployments.values()) if item.api_key == account_key), None)
+            if latest is not None:
+                active = latest.status in {"queued", "running", "cancelling"}
+                matches = (
+                    bool(source.get("fingerprint"))
+                    and latest.gpu == gpu
+                    and latest.cpu == cpu
+                    and latest.memory_mb == memory_mb
+                    and latest.source.get("fingerprint") == source["fingerprint"]
+                )
+                if matches and not force and latest.status in {"queued", "running", "completed"}:
+                    return latest.public()
+                if active:
+                    raise ValueError("Modal workspace setup is active. Wait for it to finish or stop it.")
+            if not allow_update:
+                raise ValueError(
+                    "A Modal experiment is active. Wait for it to finish or stop it "
+                    "before updating code or changing the GPU."
+                )
+            deployment = ModalDeployment(
+                id=uuid.uuid4().hex[:12],
+                gpu=gpu,
+                cpu=cpu,
+                memory_mb=memory_mb,
+                token_id=token_id,
+                token_secret=token_secret,
+                source=source,
+                api_key=account_key,
+            )
             self._deployments[deployment.id] = deployment
         thread = threading.Thread(
             target=self._run,
@@ -217,6 +245,14 @@ class ModalDeploymentManager:
 
     def _run(self, deployment: ModalDeployment, source_root: Path) -> None:
         env = os.environ.copy()
+        source = deployment.source or source_identity(source_root)
+        env.update(
+            {
+                "GTSFM_SOURCE_COMMIT": source["commit"] or "unknown",
+                "GTSFM_SOURCE_DIRTY": "1" if source["dirty"] else "0",
+                "GTSFM_SOURCE_FINGERPRINT": source["fingerprint"] or "",
+            }
+        )
         env.update(
             {
                 "MODAL_TOKEN_ID": deployment.token_id,
@@ -224,7 +260,7 @@ class ModalDeploymentManager:
                 "GTSFM_MODAL_GPU": deployment.gpu,
                 "GTSFM_MODAL_CPU": str(deployment.cpu),
                 "GTSFM_MODAL_MEMORY_MB": str(deployment.memory_mb),
-                "GTSFM_API_KEY": modal_workspace_api_key(deployment.token_id, deployment.token_secret),
+                "GTSFM_API_KEY": deployment.api_key,
                 "GTSFM_SOURCE_ROOT": str(source_root),
             }
         )
@@ -289,6 +325,8 @@ class ModalDeploymentManager:
                 return
             if return_code != 0:
                 raise RuntimeError(f"Modal deployment exited with code {return_code}")
+            if source.get("fingerprint") and source_identity(source_root).get("fingerprint") != source["fingerprint"]:
+                raise RuntimeError("Source changed during setup. Run again to prepare a consistent revision.")
             self._update(
                 deployment,
                 phase="verifying",
@@ -303,7 +341,6 @@ class ModalDeploymentManager:
                     self._mark_cancelled(deployment)
                     return
                 deployment.endpoint = discovered["endpoint"]
-                deployment.api_key = modal_workspace_api_key(deployment.token_id, deployment.token_secret)
                 deployment.status = "completed"
                 deployment.phase = "ready"
                 deployment.stage = "Ready"

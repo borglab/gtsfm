@@ -62,7 +62,7 @@
           if (failed) return;
           hint.textContent = !navigator.onLine ? "Your connection is offline. Reconnect to continue loading."
             : seconds >= 8 ? "Still loading. On a slow connection this can take a little longer; you can keep this page open."
-            : interfaceReady ? "You can use the sidebar while the 3D viewer loads." : "Loading the interface and 3D viewer.";
+            : interfaceReady ? "You can configure a run while the 3D viewer loads." : "Loading the interface and 3D viewer.";
         };
         const timer = setInterval(update, 1000);
         const cleanup = () => {

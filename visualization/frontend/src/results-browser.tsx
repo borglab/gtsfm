@@ -2,22 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useViewerApi, useViewerBusy } from "./viewer-context";
 
-export interface ResultItem {
-  kind: "scene" | "splat";
-  rel_path: string;
-  label: string;
-  modified_at?: number;
-  revision?: string;
-  points: string | null;
-  images: string | null;
-  cameras?: string | null;
-  splats: string | null;
-  point_count?: number;
-  camera_count?: number;
-  splat_count?: number;
-  can_splatify?: boolean;
-  splat_rel_path?: string;
-}
+import { loadResult, resultStageLabel, type ResultItem } from "./result-view";
+
 interface Catalog {
   base_dir: string;
   items: ResultItem[];
@@ -80,6 +66,12 @@ function sortedNodes(nodes: Map<string, ResultNode>) {
   );
 }
 
+function visibleNodes(nodes: Map<string, ResultNode>): ResultNode[] {
+  return sortedNodes(nodes).flatMap((node) =>
+    !node.item && ["runs", "results"].includes(node.name) ? visibleNodes(node.children) : [node],
+  );
+}
+
 function ModifiedTime({ seconds }: { seconds: number }) {
   const date = new Date(seconds * 1000);
   return seconds && Number.isFinite(date.getTime()) ? (
@@ -99,19 +91,14 @@ function ModifiedTime({ seconds }: { seconds: number }) {
   );
 }
 
-/** A revision includes geometry, camera metadata, and attached splats. */
-function versioned(url: string | null | undefined, item: ResultItem) {
-  if (!url) return null;
-  const revision = item.revision ?? String(item.modified_at ?? "");
-  return `${url}${url.includes("?") ? "&" : "?"}v=${encodeURIComponent(revision)}`;
-}
-
 export function ResultsBrowser({
   onSplatify,
   refreshKey,
+  onOpened,
 }: {
   onSplatify: (item: ResultItem) => void;
   refreshKey: string;
+  onOpened?: () => void;
 }) {
   const { viewer } = useViewerApi();
   const busy = useViewerBusy();
@@ -164,22 +151,14 @@ export function ResultsBrowser({
       setActive(item.rel_path);
       setLoadError("");
       try {
-        const loaded =
-          item.kind === "splat"
-            ? await viewer.loadSplatsFile({ splatsUrl: versioned(item.splats, item)!, label: item.label })
-            : await viewer.loadScene({
-                pointsUrl: versioned(item.points, item)!,
-                imagesUrl: versioned(item.images, item),
-                camerasUrl: versioned(item.cameras, item),
-                scenePath: item.rel_path,
-                splatsUrl: versioned(item.splats, item),
-              });
+        const loaded = await loadResult(viewer, item);
         if (loaded === false) setLoadError(`Could not open ${item.label}. Select it again to retry.`);
+        else onOpened?.();
       } catch (reason) {
         setLoadError(String(reason));
       }
     },
-    [viewer],
+    [viewer, onOpened],
   );
 
   useEffect(() => {
@@ -202,7 +181,7 @@ export function ResultsBrowser({
 
   const renderNodes = (nodes: Map<string, ResultNode>): React.ReactNode => (
     <ul>
-      {sortedNodes(nodes).map((node) => {
+      {visibleNodes(nodes).map((node) => {
         const item = node.item;
         if (item)
           return (
@@ -218,7 +197,7 @@ export function ResultsBrowser({
                     void open(item);
                   }}
                 >
-                  <span>{node.name}</span>
+                  <span>{resultStageLabel(item, node.name)}</span>
                   <small className="result-counts">
                     {item.kind === "splat"
                       ? item.splat_count == null
@@ -230,7 +209,7 @@ export function ResultsBrowser({
                 </button>
                 {item.can_splatify && (
                   <button type="button" className="text-button result-splatify" onClick={() => onSplatify(item)}>
-                    Splatify
+                    Create splats
                   </button>
                 )}
                 {item.splat_rel_path && (
@@ -263,7 +242,7 @@ export function ResultsBrowser({
             >
               <span className="directory-chevron" aria-hidden="true" />
               <span className="directory-label">
-                <span>{node.name}</span>
+                <span title={node.name}>{node.name.replace(/-[a-f0-9]{12,}$/, "").replace(/[-_]/g, " ")}</span>
                 <ModifiedTime seconds={node.modified} />
               </span>
             </button>
@@ -297,9 +276,7 @@ export function ResultsBrowser({
                   ? `${items.length.toLocaleString()} items ready to explore`
                   : "No results found")}
           </div>
-          <div className="info-path" data-role="path">
-            {runRoot || catalog?.base_dir || "Fetching data from server…"}
-          </div>
+          {catalog && <details className="storage-location"><summary>Storage location</summary><code>{runRoot || catalog.base_dir}</code></details>}
         </div>
       </div>
       {loadError && (

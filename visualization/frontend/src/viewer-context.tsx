@@ -154,5 +154,5 @@ export function ViewerCanvas() {
       setViewer(null);
     };
   }, [setViewer]);
-  return <canvas id="renderCanvas" ref={canvas} />;
+  return <canvas id="renderCanvas" ref={canvas} aria-label="3D reconstruction. Drag to orbit, scroll to zoom." />;
 }

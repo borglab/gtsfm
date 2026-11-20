@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, SlidersHorizontal, Orbit } from "lucide-react";
 import { useViewer, type ViewAxis } from "./viewer-context";
 
 export function ViewControls() {
   const { viewer, state } = useViewer();
   return (
-    <div id="viewControls" role="group" aria-label="Projection and axis views">
+    <details id="viewControls"><summary><Orbit size={14}/> View orientation</summary><div role="group" aria-label="Projection and axis views">
       <button
         id="orthographicBtn"
         type="button"
@@ -51,7 +51,7 @@ export function ViewControls() {
           );
         })}
       </div>
-    </div>
+    </div></details>
   );
 }
 
@@ -59,24 +59,6 @@ export function ViewerToolbar() {
   const { viewer, state } = useViewer();
   return (
     <div id="hud" className={state.mode === "splat" ? "hud-splat-mode" : ""}>
-      <label className="background-control">
-        BG{" "}
-        <select
-          id="backgroundSelect"
-          value={state.background}
-          disabled={!viewer}
-          aria-label="Viewer background"
-          onChange={(event) => {
-            viewer?.setBackground(event.target.value);
-            viewer?.savePreferences();
-          }}
-        >
-          <option value="dark">Dark</option>
-          <option value="graphite">Graphite</option>
-          <option value="light-gray">Light gray</option>
-          <option value="white">White</option>
-        </select>
-      </label>
       <button
         id="overviewBtn"
         className="hud-scene-only"
@@ -104,6 +86,26 @@ export function ViewerToolbar() {
       >
         <ChevronRight size={14} />
       </button>
+      <span className="viewer-gesture-hint">Drag to orbit · Scroll to zoom</span>
+      <details className="display-settings"><summary><SlidersHorizontal size={14}/> Display</summary><div className="display-settings-body">
+      <label className="background-control">
+        BG{" "}
+        <select
+          id="backgroundSelect"
+          value={state.background}
+          disabled={!viewer}
+          aria-label="Viewer background"
+          onChange={(event) => {
+            viewer?.setBackground(event.target.value);
+            viewer?.savePreferences();
+          }}
+        >
+          <option value="dark">Dark</option>
+          <option value="graphite">Graphite</option>
+          <option value="light-gray">Light gray</option>
+          <option value="white">White</option>
+        </select>
+      </label>
       <button id="toggleStats" disabled={!viewer} onClick={() => viewer?.toggleStatsVisible()}>
         {state.statsVisible ? "Hide stats" : "Show stats"}
       </button>
@@ -162,6 +164,7 @@ export function ViewerToolbar() {
           {state.groundY.toFixed(1)}
         </output>
       </label>
+      </div></details>
     </div>
   );
 }
@@ -226,4 +229,11 @@ export function SceneStats({ children }: { children?: ReactNode }) {
       {children}
     </div>
   );
+}
+
+/** The empty viewport names the next action instead of showing a blank renderer. */
+export function ViewerEmpty() {
+  const { state } = useViewer();
+  if (state.points || state.cameras || state.splats || state.loading.active) return null;
+  return <div className="viewer-empty"><Orbit size={38} strokeWidth={1}/><span className="eyebrow">3D WORKSPACE</span><h2>Open a reconstruction.</h2><p>Select a scene from the library to explore its geometry and camera poses.</p><span className="empty-axis" aria-hidden="true">X · Y · Z</span></div>;
 }
