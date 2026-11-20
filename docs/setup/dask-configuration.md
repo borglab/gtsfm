@@ -1,13 +1,9 @@
 # Dask configuration
 
-For locally saved settings edited in Studio, including automatic remote startup,
-use [Studio execution configurations](studio-execution.md). The constructor-file
-interface below is an optional expert/CLI path.
-
-Use the existing **Cluster config (YAML)** field in Studio, or the runner's
-`--cluster_config` argument, to reuse a local cluster configuration. GTSfM loads
-the file with its existing Hydra/OmegaConf dependency and instantiates Dask's
-`LocalCluster`. There is no separate compute-profile format or profile database.
+Use the **Cluster config** field in Studio or the runner's `--cluster_config`
+argument to load a YAML cluster configuration from disk. GTSfM loads
+the file with Hydra/OmegaConf and supports `distributed.LocalCluster` and
+`distributed.SSHCluster` constructor configurations.
 
 ```yaml
 # local-cluster.yaml: Hydra constructor configuration
@@ -56,7 +52,9 @@ programmatic overrides.
 Leaving **Cluster config** empty retains the existing manual controls. Legacy
 `workers:` YAML continues to select the existing SSH/GPU routes and uses their
 existing manual arguments. Modal retains its existing configuration flow.
-Real remote SSH/dask-cuda deployments are not covered by the local verification.
+For `SSHCluster`, install compatible versions of GTSfM, its system libraries,
+and Dask on the client, scheduler and workers so each process can import the
+task graph. Keep input paths available on the workers.
 
 The experiment used the repository's Dask/distributed **2025.9.1**, without a
 dependency upgrade. Consult the installed version when newer stable docs differ.
