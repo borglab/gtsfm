@@ -273,3 +273,17 @@ def test_eager_gpu_status_and_native_cancellation_survive_controller_restart(mon
         restored.start({"hardware": "cuda:0"})
     assert restored.cancel(created["id"])["status"] == "cancelled"
     assert calls == ["cancelled"]
+
+
+def test_gpu_call_delivered_after_stop_does_not_start_reconstruction(monkeypatch):
+    """A queued call can allocate after the controller has accepted Stop."""
+    monkeypatch.setenv("MODAL_IS_REMOTE", "1")
+    sys.modules.pop("visualization.modal_app", None)
+    modal_app = importlib.import_module("visualization.modal_app")
+    stopped = {"id": "cold-job", "status": "cancelled"}
+    monkeypatch.setattr(modal_app, "job_state", {"cancel:cold-job": stopped})
+    monkeypatch.setattr(
+        modal_app, "JobManager", lambda *_args, **_kwargs: pytest.fail("Late GPU call started a runner")
+    )
+
+    assert modal_app.gtsfm_gpu_job.local("cold-job", {}) == stopped

@@ -164,6 +164,11 @@ job_state = modal.Dict.from_name("gtsfm-studio-jobs", create_if_missing=True)
 workspace_secret = modal.Secret.from_dict({"GTSFM_API_KEY": WORKSPACE_API_KEY})
 
 
+def _cancelled_job(job_id: str) -> dict[str, Any] | None:
+    """Read the controller's durable stop record independently of worker progress."""
+    return job_state.get(f"cancel:{job_id}")
+
+
 @app.function(
     image=gpu_image,
     gpu=GPU,
@@ -181,6 +186,8 @@ workspace_secret = modal.Secret.from_dict({"GTSFM_API_KEY": WORKSPACE_API_KEY})
 )
 def gtsfm_gpu_job(job_id: str, spec: dict[str, Any]) -> dict[str, Any]:
     """Run exactly one reconstruction on GPU and publish lightweight state."""
+    if cancelled := _cancelled_job(job_id):
+        return cancelled
 
     os.environ.update(
         {
@@ -206,6 +213,9 @@ def gtsfm_gpu_job(job_id: str, spec: dict[str, Any]) -> dict[str, Any]:
         manager.start(gpu_spec, job_id=job_id)
         last_committed_preview_version = 0
         while True:
+            if cancelled := _cancelled_job(job_id):
+                manager.shutdown()
+                return cancelled
             job = manager.get(job_id)
             if job is None:
                 raise RuntimeError("GPU worker lost the active job")
@@ -296,7 +306,7 @@ class ModalGpuJobManager(JobManager):
     def _sync(self, job: ManagedJob) -> ManagedJob:
         """Read published state and make committed results visible to the web service."""
         with self._lock:
-            payload = job_state.get(job.id)
+            payload = _cancelled_job(job.id) or job_state.get(job.id)
             if not isinstance(payload, dict):
                 return job
             job = self._restore_payload(payload)
@@ -404,16 +414,20 @@ class ModalGpuJobManager(JobManager):
                 raise KeyError(job_id)
             if job.status not in {"queued", "running"}:
                 return job.public()
-            call_id = self._calls.get(job_id)
-            if call_id:
-                modal.FunctionCall.from_id(call_id).cancel(terminate_containers=True)
             job.status = "cancelled"
             job.updated_at = _utc_now()
             job.error = None
-            job.log_tail.append("Modal GPU worker terminated.")
+            job.log_tail.append("Modal cancellation requested.")
             del job.log_tail[:-250]
-            job_state[job_id] = job.public()
-            return job.public()
+            cancelled = job.public()
+            # A cold allocation may still be delivered after the provider
+            # acknowledges cancellation. The worker must see Stop before launch.
+            job_state[f"cancel:{job_id}"] = cancelled
+            call_id = self._calls.get(job_id)
+            if call_id:
+                modal.FunctionCall.from_id(call_id).cancel(terminate_containers=True)
+            job_state[job_id] = cancelled
+            return cancelled
 
 
 def modal_gpu_hardware() -> dict[str, Any]:
