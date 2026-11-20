@@ -517,7 +517,7 @@ def configuration_schema() -> dict[str, Any]:
     """Read current config choices so newly added presets appear without a server restart."""
 
     root_configs = _yaml_stem_options(CONFIG_ROOT)
-    excluded = {"cluster", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
+    excluded = {"cluster", "cluster_local", "cluster_gpu", "local_scheduler_postgres_remote_cluster"}
     root_configs = [name for name in root_configs if name not in excluded]
     models: list[dict[str, Any]] = []
     for name in root_configs:
